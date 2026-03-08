@@ -13,45 +13,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: 'jwt' },
   callbacks: {
     async jwt({ token, account, profile }) {
+      // TEMPORARY: Skip Prisma to isolate if DB call is the issue
       if (account && profile?.email) {
-        try {
-          let user = await prisma.user.findUnique({
-            where: { email: profile.email },
-          })
-          if (!user) {
-            const baseSlug = profile.email
-              .split('@')[0]
-              .replace(/[^a-z0-9]/gi, '')
-              .toLowerCase()
-            user = await prisma.user.create({
-              data: {
-                email: profile.email,
-                name: profile.name ?? null,
-                image: (profile as any).picture ?? null,
-                slug: baseSlug,
-              },
-            })
-          }
-          token.userId = user.id
-          ;(globalThis as any).__jwtCallbackResult = {
-            timestamp: new Date().toISOString(),
-            status: 'success',
-            userId: user.id,
-            email: profile.email,
-          }
-        } catch (error: any) {
-          ;(globalThis as any).__jwtCallbackResult = {
-            timestamp: new Date().toISOString(),
-            status: 'error',
-            errorMessage: error?.message ?? String(error),
-            errorName: error?.name,
-            errorCode: error?.code,
-            errorMeta: error?.meta ? JSON.stringify(error.meta) : undefined,
-            errorStack: error?.stack?.split('\n').slice(0, 5).join('\n'),
-          }
-          console.error('[auth] JWT callback error:', error)
-          throw error
-        }
+        token.userId = "temp-test-id"
+        token.email = profile.email
       }
       return token
     },
