@@ -5,38 +5,38 @@ Schedule meetings & get documents signed — one platform, $5/mo.
 ## Features
 
 ### Scheduling (Calendly-parity)
-- ✅ Shareable booking pages with custom branding
-- ✅ Multiple event types (different durations, locations, custom questions)
-- ✅ Google Calendar OAuth + 2-way sync (avoid double-booking)
-- ✅ Outlook/Office 365 calendar sync (Microsoft Graph API)
-- ✅ Multi-calendar conflict detection — connect multiple calendars, prevent double-booking across all of them ([docs](docs/features/multi-calendar-support.md))
-- ✅ Availability engine — working hours, day-specific rules, buffer time, daily/weekly limits
-- ✅ Timezone auto-detection + display for bookers
-- ✅ Video conferencing — auto-generate Zoom & Google Meet links
-- ✅ Email confirmations + reminders (Amazon SES)
-- ✅ SMS reminders (Twilio)
-- ✅ Reschedule/cancel — self-service links for bookers
-- ✅ Custom intake questions on booking page
-- ✅ Embed widget (iframe + JS snippet)
-- ✅ Custom branding (logo, colors)
-- ✅ Payment collection via Stripe for paid bookings
-- ✅ Webhooks + REST API
-- ✅ Collective scheduling (find time across multiple hosts)
+- Shareable booking pages with custom branding
+- Multiple event types (different durations, locations, custom questions)
+- Google Calendar OAuth + 2-way sync (avoid double-booking)
+- Outlook/Office 365 calendar sync (Microsoft Graph API)
+- Multi-calendar conflict detection — connect multiple calendars, prevent double-booking across all of them ([docs](docs/features/multi-calendar-support.md))
+- Availability engine — working hours, day-specific rules, buffer time, daily/weekly limits
+- Timezone auto-detection + display for bookers
+- Video conferencing — auto-generate Zoom & Google Meet links
+- Email confirmations + reminders (Amazon SES)
+- SMS reminders (Twilio)
+- Reschedule/cancel — self-service links for bookers
+- Custom intake questions on booking page
+- Embed widget (iframe + JS snippet)
+- Custom branding (logo, colors)
+- Payment collection via Stripe for paid bookings
+- Webhooks + REST API
+- Collective scheduling (find time across multiple hosts)
 
 ### Infrastructure
-- ✅ Next.js 14 (App Router, TypeScript)
-- ✅ PostgreSQL + Prisma ORM
-- ✅ Auth — email/password + Google OAuth (NextAuth.js)
-- ✅ Stripe subscription billing ($5/mo or $48/yr)
-- ✅ Landing page (conversion-focused)
-- ✅ User dashboard + settings
+- Next.js 14 (App Router, TypeScript)
+- Neon serverless PostgreSQL + Prisma ORM
+- Auth.js v5 (Google OAuth)
+- Stripe subscription billing ($5/mo or $48/yr)
+- Landing page (conversion-focused)
+- User dashboard + settings
 
 ## Tech Stack
 
 - **Frontend:** Next.js 14, React, Tailwind CSS
 - **Backend:** Next.js API routes
-- **Database:** PostgreSQL + Prisma
-- **Auth:** NextAuth.js (credentials + Google OAuth)
+- **Database:** Neon serverless PostgreSQL + Prisma
+- **Auth:** Auth.js v5 (Google OAuth)
 - **Payments:** Stripe
 - **Email:** Amazon SES via Nodemailer
 - **SMS:** Twilio
@@ -65,7 +65,12 @@ npm run dev
 
 ## Environment Variables
 
-See `.env.example` for all required variables.
+See `.env.example` for all required variables. Key variables:
+
+- `AUTH_SECRET` — Auth.js session encryption key (generate with `npx auth secret`)
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Google OAuth credentials
+- `DATABASE_URL` — Neon PostgreSQL connection string
+- `NEXTAUTH_URL` — App URL for Auth.js callbacks
 
 ## API Documentation
 
@@ -97,30 +102,21 @@ Webhook payloads include `X-Webhook-Signature` header (HMAC-SHA256).
 
 ## Deployment
 
-### AWS (Production)
+### AWS Amplify (Production)
 
-SchedulSign uses a multi-account AWS architecture with separate Dev/QA/Prod environments:
+SchedulSign deploys on AWS Amplify with Neon serverless PostgreSQL:
 
 **Infrastructure:**
-- **AWS Amplify** - Next.js SSR hosting with auto-scaling
-- **RDS PostgreSQL** - Managed database in private VPC
-- **Secrets Manager** - Secure credential storage
-- **CloudWatch** - Logging and monitoring
+- **AWS Amplify** — Next.js SSR hosting with auto-scaling
+- **Neon** — Serverless PostgreSQL database
 
-**Deployment Strategy:**
+**Deployment:**
 ```bash
-# Deploy infrastructure (per environment)
-cd infrastructure/terraform
-terraform init
-terraform apply
-
 # Amplify automatically deploys on:
-# - Push to main → Dev
-# - Tag v1.2.3-qa → QA
-# - Tag v1.2.3 → Prod (requires approval)
+# - Push to main -> Dev
+# - Tag v1.2.3-qa -> QA
+# - Tag v1.2.3 -> Prod (requires approval)
 ```
-
-See [infrastructure/README.md](infrastructure/README.md) for complete deployment guide.
 
 **Account Structure:**
 | Environment | Deploy Trigger | Account |
@@ -154,4 +150,3 @@ docker run -p 3000:3000 --env-file .env schedulsign
 ## License
 
 MIT
-# Trigger rebuild with updated env vars

@@ -15,7 +15,7 @@ export default function LandingPage() {
               Log in
             </Link>
             <Link
-              href="/signup"
+              href="/login"
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
             >
               Get Started Free
@@ -39,7 +39,7 @@ export default function LandingPage() {
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
-            href="/signup"
+            href="/login"
             className="bg-blue-600 text-white px-8 py-3.5 rounded-lg text-lg font-medium hover:bg-blue-700 transition flex items-center gap-2"
           >
             Start Free <ArrowRight className="w-5 h-5" />
@@ -177,7 +177,7 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/signup" className="block text-center border border-gray-300 py-2.5 rounded-lg hover:bg-gray-50 transition font-medium">
+            <Link href="/login" className="block text-center border border-gray-300 py-2.5 rounded-lg hover:bg-gray-50 transition font-medium">
               Get Started
             </Link>
           </div>
@@ -206,7 +206,7 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/signup" className="block text-center bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition font-medium">
+            <Link href="/login" className="block text-center bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition font-medium">
               Start Free Trial
             </Link>
           </div>
@@ -221,7 +221,7 @@ export default function LandingPage() {
             Join thousands of freelancers and businesses who schedule and sign with SchedulSign.
           </p>
           <Link
-            href="/signup"
+            href="/login"
             className="inline-flex items-center gap-2 bg-white text-blue-600 px-8 py-3.5 rounded-lg text-lg font-medium hover:bg-blue-50 transition"
           >
             Get Started Free <ArrowRight className="w-5 h-5" />

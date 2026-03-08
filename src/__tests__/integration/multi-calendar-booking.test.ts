@@ -55,16 +55,16 @@ vi.mock("@/lib/calendar/google-calendar", () => ({
   refreshGoogleToken: (...args: any[]) => mockRefreshGoogleToken(...args),
 }))
 
-// ─── Mock next-auth ───
+// ─── Mock Auth.js ───
 
-const mockGetServerSession = vi.fn()
+const mockAuth = vi.fn()
 
-vi.mock("next-auth", () => ({
-  getServerSession: (...args: any[]) => mockGetServerSession(...args),
+vi.mock("@/auth", () => ({
+  auth: (...args: any[]) => mockAuth(...args),
 }))
 
 vi.mock("@/lib/auth", () => ({
-  authOptions: {},
+  getAuthenticatedUser: vi.fn(),
 }))
 
 // ─── Save/restore global fetch ───

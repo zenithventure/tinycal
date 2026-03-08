@@ -1,11 +1,7 @@
 "use client"
 
-import { Amplify } from "aws-amplify"
-import amplifyConfig from "@/lib/amplify-config"
-import { AuthProvider } from "@/lib/contexts/auth-context"
-
-Amplify.configure(amplifyConfig, { ssr: true })
+import { SessionProvider } from "next-auth/react"
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>
+  return <SessionProvider>{children}</SessionProvider>
 }

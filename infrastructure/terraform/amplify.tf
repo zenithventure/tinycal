@@ -132,17 +132,14 @@ resource "aws_amplify_branch" "main" {
     # Database
     DATABASE_URL = "postgresql://${local.db_username}:${random_password.db_password.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${local.db_name}"
 
-    # App URL (must match Cognito callback URLs)
+    # App URL
     NEXT_PUBLIC_APP_URL = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
 
-    # Required by @aws-amplify/adapter-nextjs createAuthRouteHandlers
-    AMPLIFY_APP_ORIGIN = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
-
-    # Cognito
-    NEXT_PUBLIC_COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
-    NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID = aws_cognito_user_pool_client.main.id
-    NEXT_PUBLIC_COGNITO_DOMAIN           = "${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
-    NEXT_PUBLIC_COGNITO_ISSUER           = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+    # Auth.js
+    AUTH_SECRET           = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    NEXTAUTH_URL          = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
+    GOOGLE_CLIENT_ID      = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    GOOGLE_CLIENT_SECRET  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
 
     # Stripe
     STRIPE_SECRET_KEY              = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
