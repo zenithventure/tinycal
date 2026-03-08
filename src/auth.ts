@@ -51,12 +51,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   logger: {
     error(code, ...message) {
       console.error('[auth][error]', code, JSON.stringify(message))
+      // Store error for debug endpoint retrieval
+      ;(globalThis as any).__lastAuthError = {
+        timestamp: new Date().toISOString(),
+        code,
+        message: JSON.stringify(message),
+      }
     },
     warn(code, ...message) {
       console.warn('[auth][warn]', code, ...message)
     },
     debug(code, ...message) {
       console.log('[auth][debug]', code, ...message)
+      // Store last 5 debug messages
+      if (!(globalThis as any).__authDebugLog) (globalThis as any).__authDebugLog = []
+      ;(globalThis as any).__authDebugLog.push({
+        timestamp: new Date().toISOString(),
+        code,
+        message: message.map((m: any) => typeof m === 'object' ? JSON.stringify(m) : String(m)).join(' '),
+      })
+      if ((globalThis as any).__authDebugLog.length > 10) (globalThis as any).__authDebugLog.shift()
     },
   },
   pages: {
