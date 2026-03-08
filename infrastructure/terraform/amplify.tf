@@ -21,42 +21,6 @@ resource "aws_iam_role" "amplify" {
   }
 }
 
-# Policy for Amplify to access Secrets Manager
-resource "aws_iam_role_policy" "amplify_secrets" {
-  name_prefix = "${local.app_name}-amplify-secrets-"
-  role        = aws_iam_role.amplify.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue",
-        ]
-        Resource = [
-          aws_secretsmanager_secret.db_password.arn,
-          aws_secretsmanager_secret.app_secrets.arn,
-        ]
-      }
-    ]
-  })
-}
-
-# Store application secrets in Secrets Manager
-resource "aws_secretsmanager_secret" "app_secrets" {
-  name_prefix             = "${local.app_name}-app-secrets-"
-  recovery_window_in_days = 7
-
-  tags = {
-    Name = "${local.app_name}-app-secrets"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 # Amplify App
 resource "aws_amplify_app" "main" {
   name       = local.app_name
@@ -64,7 +28,6 @@ resource "aws_amplify_app" "main" {
 
   access_token = var.github_access_token
 
-  # Build settings for Next.js with Prisma migrations
   build_spec = <<-EOT
     version: 1
     frontend:
@@ -73,7 +36,6 @@ resource "aws_amplify_app" "main" {
           commands:
             - npm ci
             - npx prisma generate
-            - npx prisma migrate deploy
         build:
           commands:
             - npm run build
@@ -87,25 +49,19 @@ resource "aws_amplify_app" "main" {
           - .next/cache/**/*
   EOT
 
-  # Environment variables (non-sensitive)
-  # Note: NEXT_PUBLIC_APP_URL is set after app creation to avoid circular dependency
   environment_variables = {
     NEXT_PUBLIC_APP_NAME = "SchedulSign"
     NEXT_PUBLIC_APP_URL  = var.domain_name != null ? "https://${var.domain_name}" : "https://temp-placeholder.amplifyapp.com"
   }
 
-  # Enable auto branch creation
   enable_auto_branch_creation = false
   enable_branch_auto_build    = true
   enable_branch_auto_deletion = false
 
-  # Platform
-  platform = "WEB_COMPUTE" # Required for SSR
+  platform = "WEB_COMPUTE"
 
-  # IAM role
   iam_service_role_arn = aws_iam_role.amplify.arn
 
-  # Custom rules for Next.js
   custom_rule {
     source = "/<*>"
     status = "404-200"
@@ -127,28 +83,27 @@ resource "aws_amplify_branch" "main" {
 
   enable_auto_build = true
 
-  # Environment variables (sensitive - from Secrets Manager)
   environment_variables = {
-    # Database
-    DATABASE_URL = "postgresql://${local.db_username}:${random_password.db_password.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${local.db_name}"
+    # Database (Neon)
+    DATABASE_URL = var.database_url
 
     # App URL
     NEXT_PUBLIC_APP_URL = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
 
     # Auth.js
-    AUTH_SECRET           = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    NEXTAUTH_URL          = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
-    GOOGLE_CLIENT_ID      = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    GOOGLE_CLIENT_SECRET  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    AUTH_SECRET          = var.auth_secret
+    NEXTAUTH_URL         = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
+    GOOGLE_CLIENT_ID     = var.google_oauth_client_id
+    GOOGLE_CLIENT_SECRET = var.google_oauth_client_secret
 
     # Stripe
-    STRIPE_SECRET_KEY              = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    STRIPE_PUBLISHABLE_KEY         = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    STRIPE_WEBHOOK_SECRET          = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    STRIPE_PRO_MONTHLY_PRICE_ID    = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    STRIPE_PRO_YEARLY_PRICE_ID     = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    STRIPE_SECRET_KEY           = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    STRIPE_PUBLISHABLE_KEY      = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    STRIPE_WEBHOOK_SECRET       = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    STRIPE_PRO_MONTHLY_PRICE_ID = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    STRIPE_PRO_YEARLY_PRICE_ID  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
 
-    # SES (Note: Cannot use AWS_ prefix in Amplify)
+    # SES
     SES_REGION     = var.aws_region
     SES_ACCESS_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
     SES_SECRET_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"

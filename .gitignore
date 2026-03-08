@@ -42,7 +42,9 @@ next-env.d.ts
 /src/generated/prisma
 .env
 
-# Lambda build artifacts
-lambda/migrations/function.zip
-lambda/migrations/build/
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+terraform.tfvars
 

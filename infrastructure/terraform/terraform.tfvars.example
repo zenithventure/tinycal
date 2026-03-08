@@ -9,7 +9,7 @@ environment = "dev"
 aws_region = "us-east-1"
 
 # GitHub Repository
-github_repository = "zenithventure/schedulsign"
+github_repository = "felix-0988/schedulsign"
 github_branch     = "main"
 
 # GitHub Access Token (create at https://github.com/settings/tokens)
@@ -19,12 +19,12 @@ github_access_token = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 # Custom Domain (optional - only for prod)
 # domain_name = "app.schedulsign.com"
 
-# Database Instance Class
-# Free tier: db.t4g.micro
-# Prod: db.t4g.small or larger
-db_instance_class = "db.t4g.micro"
+# Neon PostgreSQL connection string
+database_url = "postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
-# Google OAuth (for Cognito federated identity)
-# Create at https://console.cloud.google.com/apis/credentials
+# Auth.js secret (generate with: openssl rand -base64 32)
+auth_secret = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Google OAuth (create at https://console.cloud.google.com/apis/credentials)
 google_oauth_client_id     = "xxxxxxxxxxxx.apps.googleusercontent.com"
 google_oauth_client_secret = "GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx"
