@@ -37,6 +37,11 @@ export async function GET(req: NextRequest) {
     })
     const userInfo = await userInfoResponse.json()
 
+    // Check if user already has a primary calendar
+    const existingPrimary = await prisma.calendarConnection.findFirst({
+      where: { userId: state, isPrimary: true },
+    })
+
     // Save calendar connection
     await prisma.calendarConnection.upsert({
       where: {
@@ -58,7 +63,7 @@ export async function GET(req: NextRequest) {
         refreshToken: tokens.refresh_token || undefined,
         expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : undefined,
         email: userInfo.email,
-        isPrimary: true,
+        isPrimary: !existingPrimary, // Only set as primary if no existing primary
       },
     })
 
