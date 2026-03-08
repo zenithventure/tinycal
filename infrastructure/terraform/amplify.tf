@@ -36,7 +36,7 @@ resource "aws_amplify_app" "main" {
           commands:
             - npm ci
             - npx prisma generate
-            - env | grep -E '^(DATABASE_URL|AUTH_SECRET|AUTH_TRUST_HOST|NEXTAUTH_URL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|NEXT_PUBLIC_)' > .env.production
+            - env | grep -E '^(DATABASE_URL|AUTH_SECRET|AUTH_TRUST_HOST|AUTH_URL|NEXTAUTH_URL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|NEXT_PUBLIC_)' > .env.production
         build:
           commands:
             - npm run build
@@ -94,6 +94,7 @@ resource "aws_amplify_branch" "main" {
     # Auth.js
     AUTH_SECRET          = var.auth_secret
     AUTH_TRUST_HOST      = "true"
+    AUTH_URL             = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
     NEXTAUTH_URL         = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
     GOOGLE_CLIENT_ID     = var.google_oauth_client_id
     GOOGLE_CLIENT_SECRET = var.google_oauth_client_secret
