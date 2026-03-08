@@ -2,36 +2,44 @@ import { handlers } from '@/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 async function wrappedGET(req: NextRequest) {
+  const url = new URL(req.url)
+  const isCallback = url.pathname.includes('/callback/')
+
   try {
-    const url = new URL(req.url)
     const cookies = req.cookies.getAll().map(c => c.name)
-
-    // Store request info for debug endpoint
-    ;(globalThis as any).__lastCallbackError = {
-      timestamp: new Date().toISOString(),
-      path: url.pathname + url.search,
-      cookiesPresent: cookies,
-      status: 'processing',
-    }
-
     const response = await handlers.GET(req)
-
     const location = response?.headers.get('location')
-    ;(globalThis as any).__lastCallbackError = {
-      ...(globalThis as any).__lastCallbackError,
-      responseStatus: response?.status,
-      redirectLocation: location,
-      status: location?.includes('error=') ? 'error-redirect' : 'ok',
+
+    // If this is a callback that's redirecting to an error page, intercept it
+    if (isCallback && location?.includes('error=')) {
+      return NextResponse.json({
+        intercepted: true,
+        originalRedirect: location,
+        requestPath: url.pathname + url.search,
+        cookiesOnRequest: cookies,
+        responseStatus: response?.status,
+        responseHeaders: Object.fromEntries(response?.headers.entries() ?? []),
+      }, { status: 500 })
     }
 
     return response
-  } catch (error) {
-    ;(globalThis as any).__lastCallbackError = {
-      ...(globalThis as any).__lastCallbackError,
-      status: 'thrown',
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      cause: error instanceof Error && error.cause ? String(error.cause) : undefined,
+  } catch (error: any) {
+    if (isCallback) {
+      return NextResponse.json({
+        intercepted: true,
+        thrown: true,
+        error: error?.message ?? String(error),
+        name: error?.name,
+        code: error?.code,
+        cause: error?.cause ? {
+          message: error.cause?.message ?? String(error.cause),
+          name: error.cause?.name,
+          code: error.cause?.code,
+          meta: error.cause?.meta,
+          stack: error.cause?.stack?.split('\n').slice(0, 5),
+        } : undefined,
+        stack: error?.stack?.split('\n').slice(0, 8),
+      }, { status: 500 })
     }
     throw error
   }
