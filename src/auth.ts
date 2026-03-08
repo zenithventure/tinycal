@@ -13,24 +13,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account && profile?.email) {
-        let user = await prisma.user.findUnique({
-          where: { email: profile.email },
-        })
-        if (!user) {
-          const baseSlug = profile.email
-            .split('@')[0]
-            .replace(/[^a-z0-9]/gi, '')
-            .toLowerCase()
-          user = await prisma.user.create({
-            data: {
-              email: profile.email,
-              name: profile.name ?? null,
-              image: (profile as any).picture ?? null,
-              slug: baseSlug,
-            },
+        try {
+          let user = await prisma.user.findUnique({
+            where: { email: profile.email },
           })
+          if (!user) {
+            const baseSlug = profile.email
+              .split('@')[0]
+              .replace(/[^a-z0-9]/gi, '')
+              .toLowerCase()
+            user = await prisma.user.create({
+              data: {
+                email: profile.email,
+                name: profile.name ?? null,
+                image: (profile as any).picture ?? null,
+                slug: baseSlug,
+              },
+            })
+          }
+          token.userId = user.id
+        } catch (error) {
+          console.error('[auth] JWT callback error:', error)
+          throw error
         }
-        token.userId = user.id
       }
       return token
     },
@@ -41,6 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
   },
+  debug: process.env.NODE_ENV === 'production',
   pages: {
     signIn: '/login',
     error: '/login',
