@@ -36,6 +36,7 @@ resource "aws_amplify_app" "main" {
           commands:
             - npm ci
             - npx prisma generate
+            - env | grep -E '^(DATABASE_URL|AUTH_SECRET|AUTH_TRUST_HOST|NEXTAUTH_URL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|NEXT_PUBLIC_)' > .env.production
         build:
           commands:
             - npm run build
