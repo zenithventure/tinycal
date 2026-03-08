@@ -1,8 +1,13 @@
 "use client"
 
 import { signIn } from "next-auth/react"
+import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams()
+  const error = searchParams.get("error")
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
@@ -14,6 +19,13 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border p-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+              {error === "Configuration"
+                ? "Server configuration error. Check AUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and DATABASE_URL."
+                : `Authentication error: ${error}`}
+            </div>
+          )}
           <button
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
             type="button"
@@ -42,5 +54,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }
