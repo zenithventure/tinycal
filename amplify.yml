@@ -5,7 +5,7 @@ frontend:
       commands:
         - npm ci
         - npx prisma generate
-        - env | grep -E '^(DATABASE_URL|AUTH_SECRET|AUTH_TRUST_HOST|AUTH_URL|NEXTAUTH_URL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|NEXT_PUBLIC_)' > .env.production
+        - env | grep -E '^(DATABASE_URL|AUTH_SECRET|AUTH_TRUST_HOST|AUTH_URL|NEXTAUTH_URL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|EMAIL_SENDER_|STRIPE_|NEXT_PUBLIC_)' > .env.production
     build:
       commands:
         - npm run build
