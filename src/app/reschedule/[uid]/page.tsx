@@ -13,17 +13,15 @@ export default function ReschedulePage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [slots, setSlots] = useState<any[]>([])
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
-  const [booking] = useState<any>(null)
+  const [booking, setBooking] = useState<any>(null)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
   const timezone = typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
 
-  // We need event type ID — fetch it from original booking info
-  // For simplicity, we'll use a dedicated API or pass through query
-  // Using a simple approach: fetch booking details
-
   useEffect(() => {
-    // We'd need a public booking fetch endpoint; for now just render the calendar
+    fetch(`/api/bookings/${uid}`)
+      .then(r => r.json())
+      .then(d => { if (!d.error) setBooking(d) })
   }, [uid])
 
   useEffect(() => {
