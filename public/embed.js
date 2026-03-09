@@ -8,7 +8,7 @@
     var baseUrl = script.src.replace('/embed.js', '');
     
     var container = document.createElement('div');
-    container.className = 'schedulsign-embed';
+    container.className = 'tinycal-embed';
     
     var iframe = document.createElement('iframe');
     iframe.src = baseUrl + '/' + user + (event ? '/' + event : '');
@@ -23,7 +23,7 @@
     
     // Listen for resize messages from iframe
     window.addEventListener('message', function(e) {
-      if (e.data && e.data.type === 'schedulsign:resize') {
+      if (e.data && e.data.type === 'tinycal:resize') {
         iframe.style.height = e.data.height + 'px';
       }
     });

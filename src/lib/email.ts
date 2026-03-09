@@ -1,5 +1,7 @@
-const EMAIL_SENDER_URL = process.env.EMAIL_SENDER_URL
-const EMAIL_SENDER_API_KEY = process.env.EMAIL_SENDER_API_KEY
+import { Resend } from "resend"
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+const EMAIL_FROM = process.env.EMAIL_FROM || "TinyCal <noreply@tinycal.io>"
 
 interface EmailOptions {
   to: string
@@ -8,24 +10,21 @@ interface EmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: EmailOptions) {
-  if (!EMAIL_SENDER_URL) {
-    console.warn("EMAIL_SENDER_URL not set, skipping email send")
+  if (!resend) {
+    console.warn("RESEND_API_KEY not set, skipping email send")
     return
   }
 
-  const response = await fetch(EMAIL_SENDER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(EMAIL_SENDER_API_KEY && { "X-Api-Key": EMAIL_SENDER_API_KEY }),
-    },
-    body: JSON.stringify({ to, subject, html }),
+  const { error } = await resend.emails.send({
+    from: EMAIL_FROM,
+    to,
+    subject,
+    html,
   })
 
-  if (!response.ok) {
-    const error = await response.text()
-    console.error("Email send failed:", response.status, error)
-    throw new Error(`Email send failed: ${response.status} ${error}`)
+  if (error) {
+    console.error("Email send failed:", error)
+    throw new Error(`Email send failed: ${error.message}`)
   }
 }
 
@@ -46,15 +45,15 @@ export function bookingConfirmationEmail(data: {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1a1a1a;">
   <div style="border-bottom: 3px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px;">
-    <h1 style="margin: 0; font-size: 20px; color: #2563eb;">Booking Confirmed ✓</h1>
+    <h1 style="margin: 0; font-size: 20px; color: #2563eb;">Booking Confirmed</h1>
   </div>
   <p>Hi ${data.bookerName},</p>
   <p>Your meeting with <strong>${data.hostName}</strong> has been confirmed.</p>
   <div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0;">
     <p style="margin: 4px 0;"><strong>${data.eventTitle}</strong></p>
-    <p style="margin: 4px 0;">📅 ${data.dateTime}</p>
-    <p style="margin: 4px 0;">🌍 ${data.timezone}</p>
-    <p style="margin: 4px 0;">📍 ${data.location}</p>
+    <p style="margin: 4px 0;">${data.dateTime}</p>
+    <p style="margin: 4px 0;">${data.timezone}</p>
+    <p style="margin: 4px 0;">${data.location}</p>
     ${data.meetingUrl ? `<p style="margin: 8px 0;"><a href="${data.meetingUrl}" style="background: #2563eb; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; display: inline-block;">Join Meeting</a></p>` : ''}
   </div>
   <p style="font-size: 14px; color: #666;">

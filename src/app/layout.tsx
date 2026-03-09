@@ -6,8 +6,8 @@ import { Providers } from "@/components/providers"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SchedulSign — Schedule Meetings & Get Documents Signed",
-  description: "One platform for scheduling and e-signatures. Replace Calendly + DocuSign for $5/mo.",
+  title: "TinyCal — Simple Scheduling for Busy People",
+  description: "A lightweight scheduling platform with calendar sync, booking pages, and automatic meeting links.",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

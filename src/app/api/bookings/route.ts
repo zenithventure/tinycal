@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     if (eventType.location === "GOOGLE_MEET") {
       const calEvent = await createGoogleCalendarEvent(eventType.userId, {
         summary: `${eventType.title} - ${bookerName}`,
-        description: `Booked via SchedulSign`,
+        description: `Booked via TinyCal`,
         startTime: start,
         endTime: end,
         attendees: [{ email: bookerEmail }],

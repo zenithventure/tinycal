@@ -202,7 +202,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
           <Link href={`/reschedule/${confirmedBooking.uid}`} className="text-blue-600 hover:underline py-2 md:py-0">Reschedule</Link>
           <Link href={`/cancel/${confirmedBooking.uid}`} className="text-red-600 hover:underline py-2 md:py-0">Cancel</Link>
         </div>
-        <p className="text-xs text-gray-400 mt-6">Powered by <Link href="/" className="text-blue-600">SchedulSign</Link></p>
+        <p className="text-xs text-gray-400 mt-6">Powered by <Link href="/" className="text-blue-600">TinyCal</Link></p>
       </div>
     )
   }

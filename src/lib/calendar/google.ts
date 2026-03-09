@@ -91,7 +91,7 @@ export async function createGoogleCalendarEvent(
         ...(event.conferenceData && {
           conferenceData: {
             createRequest: {
-              requestId: `schedulsign-${Date.now()}`,
+              requestId: `tinycal-${Date.now()}`,
               conferenceSolutionKey: { type: "hangoutsMeet" },
             },
           },

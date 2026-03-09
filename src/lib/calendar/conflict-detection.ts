@@ -1,7 +1,7 @@
 /**
  * @module conflict-detection
  *
- * Multi-calendar conflict detection service for SchedulSign.
+ * Multi-calendar conflict detection service for TinyCal.
  *
  * This module aggregates busy events from all of a user's connected calendars
  * (Google Calendar and Outlook) that have conflict checking enabled. It is the

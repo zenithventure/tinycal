@@ -170,7 +170,7 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium mb-1">URL Slug</label>
             <div className="flex items-center border rounded-lg overflow-hidden">
               <span className="bg-gray-50 px-3 py-2 text-sm text-gray-500 border-r">
-                schedulsign.com/
+                tinycal.io/
               </span>
               <input
                 type="text"
@@ -460,10 +460,10 @@ export default function SettingsPage() {
       <div className="bg-white border rounded-xl p-6">
         <h2 className="font-semibold mb-4">Embed Widget</h2>
         <p className="text-sm text-gray-600 mb-3">
-          Add SchedulSign to your website:
+          Add TinyCal to your website:
         </p>
         <div className="bg-gray-900 text-green-400 p-4 rounded-lg text-sm font-mono overflow-x-auto">
-          {`<!-- SchedulSign Embed -->
+          {`<!-- TinyCal Embed -->
 <iframe src="${typeof window !== "undefined" ? window.location.origin : ""}/${user.slug}"
   style="width:100%;height:700px;border:none;"
   loading="lazy"></iframe>`}

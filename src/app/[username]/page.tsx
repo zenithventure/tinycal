@@ -53,7 +53,7 @@ export default async function UserBookingPage({ params }: { params: { username: 
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-8">
-          Powered by <Link href="/" className="text-blue-600 hover:underline">SchedulSign</Link>
+          Powered by <Link href="/" className="text-blue-600 hover:underline">TinyCal</Link>
         </p>
       </div>
     </div>

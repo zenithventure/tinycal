@@ -57,7 +57,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
           console.warn("Reschedule: Google Calendar update returned null, creating new event")
           const calEvent = await createGoogleCalendarEvent(booking.userId, {
             summary: `${booking.eventType.title} - ${booking.bookerName}`,
-            description: `Rescheduled via SchedulSign`,
+            description: `Rescheduled via TinyCal`,
             startTime: start,
             endTime: end,
             attendees: [{ email: booking.bookerEmail }],
@@ -82,7 +82,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
       if (booking.eventType.location === "GOOGLE_MEET") {
         const calEvent = await createGoogleCalendarEvent(booking.userId, {
           summary: `${booking.eventType.title} - ${booking.bookerName}`,
-          description: `Rescheduled via SchedulSign`,
+          description: `Rescheduled via TinyCal`,
           startTime: start,
           endTime: end,
           attendees: [{ email: booking.bookerEmail }],
