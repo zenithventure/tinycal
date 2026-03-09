@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 const publicRoutes = [
   '/', '/login',
   '/api/webhooks', '/api/availability', '/api/bookings',
-  '/api/slots', '/api/stripe/webhook', '/api/auth',
+  '/api/slots', '/api/stripe/webhook', '/api/auth', '/api/debug',
 ]
 
 function isPublicRoute(pathname: string): boolean {
