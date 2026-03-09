@@ -115,6 +115,29 @@ export async function createOutlookCalendarEvent(
   }
 }
 
+export async function updateOutlookCalendarEvent(
+  userId: string,
+  eventId: string,
+  event: { startTime: Date; endTime: Date }
+) {
+  const client = await getOutlookClient(userId)
+  if (!client) return null
+
+  try {
+    const res = await client.api(`/me/events/${eventId}`).patch({
+      start: { dateTime: event.startTime.toISOString(), timeZone: "UTC" },
+      end: { dateTime: event.endTime.toISOString(), timeZone: "UTC" },
+    })
+    return {
+      id: res.id,
+      meetingUrl: res.onlineMeeting?.joinUrl,
+    }
+  } catch (error) {
+    console.error("Outlook update event error:", error)
+    return null
+  }
+}
+
 export async function deleteOutlookCalendarEvent(userId: string, eventId: string) {
   const client = await getOutlookClient(userId)
   if (!client) return

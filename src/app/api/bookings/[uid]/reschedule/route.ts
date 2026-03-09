@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { sendEmail, bookingConfirmationEmail } from "@/lib/email"
-import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from "@/lib/calendar/google"
-import { createOutlookCalendarEvent, deleteOutlookCalendarEvent } from "@/lib/calendar/outlook"
-import { createZoomMeeting } from "@/lib/video"
+import { updateGoogleCalendarEvent, createGoogleCalendarEvent } from "@/lib/calendar/google"
+import { updateOutlookCalendarEvent, createOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
@@ -34,51 +33,51 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
   })
   if (conflict) return NextResponse.json({ error: "Time slot no longer available" }, { status: 409 })
 
-  // Delete old calendar event
-  if (booking.meetingId) {
-    try {
-      if (booking.eventType.location === "GOOGLE_MEET") {
-        await deleteGoogleCalendarEvent(booking.userId, booking.meetingId)
-      } else {
-        await deleteOutlookCalendarEvent(booking.userId, booking.meetingId)
-      }
-    } catch (e) {
-      console.error("Failed to delete old calendar event:", e)
-    }
-  }
-
-  // Create new calendar event
-  let meetingUrl: string | undefined
-  let meetingId: string | undefined
+  // Update existing calendar event in-place (preserves event thread, attendee responses, Meet link)
+  let meetingUrl = booking.meetingUrl || undefined
+  let meetingId = booking.meetingId || undefined
 
   try {
-    if (booking.eventType.location === "GOOGLE_MEET") {
-      const calEvent = await createGoogleCalendarEvent(booking.userId, {
-        summary: `${booking.eventType.title} - ${booking.bookerName}`,
-        description: `Rescheduled via SchedulSign`,
-        startTime: start,
-        endTime: end,
-        attendees: [{ email: booking.bookerEmail }],
-        conferenceData: true,
-      })
-      meetingUrl = calEvent?.meetingUrl || undefined
-      meetingId = calEvent?.id || undefined
-    } else if (booking.eventType.location === "ZOOM") {
-      const zoom = await createZoomMeeting({
-        topic: `${booking.eventType.title} - ${booking.bookerName}`,
-        startTime: start,
-        duration: booking.eventType.duration,
-      })
-      meetingUrl = zoom?.url
-      meetingId = zoom?.id
+    if (booking.meetingId) {
+      // Update the existing event
+      if (booking.eventType.location === "GOOGLE_MEET") {
+        const updated = await updateGoogleCalendarEvent(booking.userId, booking.meetingId, {
+          startTime: start,
+          endTime: end,
+        })
+        if (updated) {
+          meetingUrl = updated.meetingUrl || meetingUrl
+          meetingId = updated.id || meetingId
+        }
+      } else if (booking.eventType.location !== "ZOOM") {
+        // Outlook
+        await updateOutlookCalendarEvent(booking.userId, booking.meetingId, {
+          startTime: start,
+          endTime: end,
+        })
+      }
+    } else {
+      // No existing event — create a new one
+      if (booking.eventType.location === "GOOGLE_MEET") {
+        const calEvent = await createGoogleCalendarEvent(booking.userId, {
+          summary: `${booking.eventType.title} - ${booking.bookerName}`,
+          description: `Rescheduled via SchedulSign`,
+          startTime: start,
+          endTime: end,
+          attendees: [{ email: booking.bookerEmail }],
+          conferenceData: true,
+        })
+        meetingUrl = calEvent?.meetingUrl || undefined
+        meetingId = calEvent?.id || undefined
+      }
     }
 
-    // Also create Outlook event if connected
+    // Update Outlook event if connected (separate from Google)
     if (booking.eventType.location !== "GOOGLE_MEET") {
       const outlookConn = await prisma.calendarConnection.findFirst({
         where: { userId: booking.userId, provider: "OUTLOOK" },
       })
-      if (outlookConn) {
+      if (outlookConn && !booking.meetingId) {
         await createOutlookCalendarEvent(booking.userId, {
           summary: `${booking.eventType.title} - ${booking.bookerName}`,
           startTime: start,
@@ -88,34 +87,18 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
       }
     }
   } catch (e) {
-    console.error("Calendar event creation failed during reschedule:", e)
+    console.error("Calendar event update failed during reschedule:", e)
   }
 
-  // Create new booking
-  const newBooking = await prisma.booking.create({
+  // Update the booking in-place (keep same uid so reschedule/cancel links still work)
+  const updatedBooking = await prisma.booking.update({
+    where: { uid: params.uid },
     data: {
-      eventTypeId: booking.eventTypeId,
-      userId: booking.userId,
-      title: booking.title,
       startTime: start,
       endTime: end,
-      bookerName: booking.bookerName,
-      bookerEmail: booking.bookerEmail,
-      bookerTimezone: booking.bookerTimezone,
-      bookerPhone: booking.bookerPhone,
-      location: booking.location,
       meetingUrl,
       meetingId,
-      answers: booking.answers as any,
-      status: "CONFIRMED",
-      rescheduleUid: booking.uid,
     },
-  })
-
-  // Mark old booking as rescheduled
-  await prisma.booking.update({
-    where: { uid: params.uid },
-    data: { status: "RESCHEDULED" },
   })
 
   // Send emails
@@ -137,8 +120,8 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
         timezone: bookerTz,
         location: booking.eventType.location,
         meetingUrl,
-        rescheduleUrl: `${appUrl}/reschedule/${newBooking.uid}`,
-        cancelUrl: `${appUrl}/cancel/${newBooking.uid}`,
+        rescheduleUrl: `${appUrl}/reschedule/${updatedBooking.uid}`,
+        cancelUrl: `${appUrl}/cancel/${updatedBooking.uid}`,
       }),
     })
   } catch (e) {
@@ -159,8 +142,8 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
           timezone: bookerTz,
           location: booking.eventType.location,
           meetingUrl,
-          rescheduleUrl: `${appUrl}/reschedule/${newBooking.uid}`,
-          cancelUrl: `${appUrl}/cancel/${newBooking.uid}`,
+          rescheduleUrl: `${appUrl}/reschedule/${updatedBooking.uid}`,
+          cancelUrl: `${appUrl}/cancel/${updatedBooking.uid}`,
         }),
       })
     }
@@ -168,7 +151,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     console.error("Host reschedule email failed:", e)
   }
 
-  await triggerWebhooks(booking.userId, "booking.rescheduled", { old: booking, new: newBooking })
+  await triggerWebhooks(booking.userId, "booking.rescheduled", { old: booking, new: updatedBooking })
 
-  return NextResponse.json(newBooking)
+  return NextResponse.json(updatedBooking)
 }

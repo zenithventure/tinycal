@@ -108,6 +108,34 @@ export async function createGoogleCalendarEvent(
   }
 }
 
+export async function updateGoogleCalendarEvent(
+  userId: string,
+  eventId: string,
+  event: { startTime: Date; endTime: Date }
+) {
+  const calendar = await getGoogleCalendarClient(userId)
+  if (!calendar) return null
+
+  try {
+    const res = await calendar.events.patch({
+      calendarId: "primary",
+      eventId,
+      sendUpdates: "all",
+      requestBody: {
+        start: { dateTime: event.startTime.toISOString() },
+        end: { dateTime: event.endTime.toISOString() },
+      },
+    })
+    return {
+      id: res.data.id,
+      meetingUrl: res.data.hangoutLink || res.data.conferenceData?.entryPoints?.[0]?.uri,
+    }
+  } catch (error) {
+    console.error("Google Calendar update event error:", error)
+    return null
+  }
+}
+
 export async function deleteGoogleCalendarEvent(userId: string, eventId: string) {
   const calendar = await getGoogleCalendarClient(userId)
   if (!calendar) return
