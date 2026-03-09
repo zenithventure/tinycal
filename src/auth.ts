@@ -14,9 +14,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account && profile?.email) {
-        let user = await prisma.user.findUnique({
-          where: { email: profile.email },
-        })
+        console.log("[auth] JWT callback: looking up user", profile.email)
+        let user
+        try {
+          user = await prisma.user.findUnique({
+            where: { email: profile.email },
+          })
+        } catch (dbError) {
+          console.error("[auth] Database error in JWT callback:", dbError)
+          throw dbError
+        }
         if (!user) {
           const baseSlug = profile.email
             .split('@')[0]
