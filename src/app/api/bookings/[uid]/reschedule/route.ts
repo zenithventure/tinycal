@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { sendEmail, bookingConfirmationEmail } from "@/lib/email"
-import { createGoogleCalendarEvent } from "@/lib/calendar/google"
-import { createOutlookCalendarEvent } from "@/lib/calendar/outlook"
+import { createGoogleCalendarEvent, deleteGoogleCalendarEvent } from "@/lib/calendar/google"
+import { createOutlookCalendarEvent, deleteOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { createZoomMeeting } from "@/lib/video"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { format } from "date-fns"
@@ -33,6 +33,19 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     },
   })
   if (conflict) return NextResponse.json({ error: "Time slot no longer available" }, { status: 409 })
+
+  // Delete old calendar event
+  if (booking.meetingId) {
+    try {
+      if (booking.eventType.location === "GOOGLE_MEET") {
+        await deleteGoogleCalendarEvent(booking.userId, booking.meetingId)
+      } else {
+        await deleteOutlookCalendarEvent(booking.userId, booking.meetingId)
+      }
+    } catch (e) {
+      console.error("Failed to delete old calendar event:", e)
+    }
+  }
 
   // Create new calendar event
   let meetingUrl: string | undefined
