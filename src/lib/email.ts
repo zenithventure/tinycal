@@ -3,13 +3,19 @@ import { Resend } from "resend"
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 const EMAIL_FROM = process.env.EMAIL_FROM || "TinyCal <noreply@tinycal.io>"
 
-interface EmailOptions {
-  to: string
-  subject: string
-  html: string
+interface Attachment {
+  filename: string
+  content: Buffer | string
 }
 
-export async function sendEmail({ to, subject, html }: EmailOptions) {
+interface EmailOptions {
+  to: string | string[]
+  subject: string
+  html: string
+  attachments?: Attachment[]
+}
+
+export async function sendEmail({ to, subject, html, attachments }: EmailOptions) {
   if (!resend) {
     console.warn("RESEND_API_KEY not set, skipping email send")
     return
@@ -17,9 +23,10 @@ export async function sendEmail({ to, subject, html }: EmailOptions) {
 
   const { error } = await resend.emails.send({
     from: EMAIL_FROM,
-    to,
+    to: Array.isArray(to) ? to : [to],
     subject,
     html,
+    ...(attachments?.length && { attachments }),
   })
 
   if (error) {
