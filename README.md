@@ -104,10 +104,10 @@ Webhook payloads include `X-Webhook-Signature` header (HMAC-SHA256).
 
 ### AWS Amplify (Production)
 
-SchedulSign deploys on AWS Amplify with Neon serverless PostgreSQL:
+TinyCal deploys on AWS Amplify with Neon serverless PostgreSQL:
 
 **Infrastructure:**
-- **AWS Amplify** — Next.js SSR hosting with auto-scaling
+- - **AWS Amplify** — Next.js SSR hosting with auto-scaling
 - **Neon** — Serverless PostgreSQL database
 
 **Deployment:**
