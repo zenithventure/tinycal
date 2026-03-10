@@ -5,7 +5,7 @@ import { sendEmail } from "@/lib/email"
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@tinycal.io"
 
 export async function POST(req: Request) {
-  const { user } = await getAuthenticatedUser()
+  const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { subject, message, category } = await req.json()
