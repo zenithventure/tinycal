@@ -1,6 +1,6 @@
-# SchedulSign
+# TinyCal
 
-Schedule meetings & get documents signed — one platform, $5/mo.
+Book meetings. Get signatures. One tool, $5/mo.
 
 ## Features
 
