@@ -128,8 +128,8 @@ TinyCal deploys on AWS Amplify with Neon serverless PostgreSQL:
 ### Local Development with Docker
 
 ```bash
-docker build -t schedulsign .
-docker run -p 3000:3000 --env-file .env schedulsign
+docker build -t tinycal .
+docker run -p 3000:3000 --env-file .env tinycal
 ```
 
 ## Embed on Your Website
