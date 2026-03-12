@@ -32,18 +32,26 @@ export default function EventTypesPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const res = await fetch("/api/event-types", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    })
-    if (res.ok) {
-      const et = await res.json()
-      setEventTypes([et, ...eventTypes])
-      setShowCreate(false)
-      setForm({ title: "", duration: 30, description: "", location: "GOOGLE_MEET" })
+    try {
+      const res = await fetch("/api/event-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      })
+      if (res.ok) {
+        const et = await res.json()
+        setEventTypes([et, ...eventTypes])
+        setShowCreate(false)
+        setForm({ title: "", duration: 30, description: "", location: "GOOGLE_MEET" })
+      } else {
+        const error = await res.json().catch(() => ({}))
+        alert(error.error || "Failed to create event type. Please try again.")
+      }
+    } catch {
+      alert("Network error. Please check your connection and try again.")
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function handleDelete(id: string) {

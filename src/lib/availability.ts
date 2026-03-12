@@ -61,8 +61,9 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
       where: {
         eventTypeId,
         status: { in: ["CONFIRMED", "PENDING"] },
-        startTime: { gte: startDate },
-        endTime: { lte: endDate },
+        // Use overlap logic to catch bookings that span date boundaries
+        startTime: { lt: endDate },
+        endTime: { gt: startDate },
       },
     })
     for (const b of allBookings) {
