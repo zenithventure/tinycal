@@ -16,6 +16,7 @@ const mockCalendarConnectionCreate = vi.fn()
 const mockUserFindUnique = vi.fn()
 const mockEventTypeFindUnique = vi.fn()
 const mockAvailabilityFindMany = vi.fn()
+const mockAvailabilityScheduleFindFirst = vi.fn()
 const mockBookingFindMany = vi.fn()
 
 vi.mock("@/lib/prisma", () => ({
@@ -38,6 +39,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     availability: {
       findMany: (...args: any[]) => mockAvailabilityFindMany(...args),
+    },
+    availabilitySchedule: {
+      findFirst: (...args: any[]) => mockAvailabilityScheduleFindFirst(...args),
     },
     booking: {
       findMany: (...args: any[]) => mockBookingFindMany(...args),
@@ -106,6 +110,7 @@ function makeTestEventType(overrides = {}) {
     weeklyLimit: null,
     location: "GOOGLE_MEET",
     active: true,
+    availabilityScheduleId: null, // use legacy rules in these tests
     ...overrides,
   }
 }
@@ -159,6 +164,8 @@ describe("Multi-Calendar Booking Flow - Integration Tests", () => {
     vi.clearAllMocks()
     clearEventCache()
     global.fetch = vi.fn()
+    // Default: no named availability schedule → fall back to legacy rules
+    mockAvailabilityScheduleFindFirst.mockResolvedValue(null)
   })
 
   afterEach(() => {

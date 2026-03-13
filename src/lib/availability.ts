@@ -20,13 +20,38 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
   const { userId, eventTypeId, startDate, endDate, timezone: _timezone } = options
 
   // Get user and event type
-  const [user, eventType, availabilityRules] = await Promise.all([
+  const [user, eventType] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     prisma.eventType.findUnique({ where: { id: eventTypeId } }),
-    prisma.availability.findMany({ where: { userId, enabled: true } }),
   ])
 
   if (!user || !eventType) return []
+
+  // Determine which availability rules to use:
+  // 1. Event type's linked schedule (if set)
+  // 2. Default schedule (if any)
+  // 3. Legacy unscoped rules (backward compat)
+  let availabilityRules
+  if (eventType.availabilityScheduleId) {
+    availabilityRules = await prisma.availability.findMany({
+      where: { scheduleId: eventType.availabilityScheduleId, enabled: true },
+    })
+  } else {
+    // Try default schedule first
+    const defaultSchedule = await prisma.availabilitySchedule.findFirst({
+      where: { userId, isDefault: true },
+    })
+    if (defaultSchedule) {
+      availabilityRules = await prisma.availability.findMany({
+        where: { scheduleId: defaultSchedule.id, enabled: true },
+      })
+    } else {
+      // Fall back to legacy unscoped rules
+      availabilityRules = await prisma.availability.findMany({
+        where: { userId, scheduleId: null, enabled: true },
+      })
+    }
+  }
 
   const duration = eventType.duration
   const bufferBefore = eventType.bufferBefore
@@ -137,13 +162,24 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
 
 export async function initDefaultAvailability(userId: string) {
   const days = [1, 2, 3, 4, 5] // Mon-Fri
-  await prisma.availability.createMany({
-    data: days.map((day) => ({
+
+  // Create a named "Default" schedule
+  const schedule = await prisma.availabilitySchedule.create({
+    data: {
       userId,
-      dayOfWeek: day,
-      startTime: "09:00",
-      endTime: "17:00",
-      enabled: true,
-    })),
+      name: "Default",
+      isDefault: true,
+      rules: {
+        create: days.map((day) => ({
+          userId,
+          dayOfWeek: day,
+          startTime: "09:00",
+          endTime: "17:00",
+          enabled: true,
+        })),
+      },
+    },
   })
+
+  return schedule
 }
