@@ -127,7 +127,7 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
           }
         }
 
-        slotStart = addMinutes(slotStart, 15) // 15-min increments
+        slotStart = addMinutes(slotStart, 30) // 30-min increments (TD-0009: only :00 and :30)
       }
     }
   }
