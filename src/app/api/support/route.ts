@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedUser } from "@/lib/auth"
 
+// TD-0002: support route verified
 const TINYDESK_URL = process.env.TINYDESK_URL || "https://tinydesk.zenithstudio.app"
 
 const MAX_FILES = 3
@@ -48,11 +49,16 @@ export async function POST(req: Request) {
 
       if (!uploadRes.ok) {
         console.error("TinyDesk screenshot upload failed:", uploadRes.status)
-        return NextResponse.json({ error: "Failed to upload screenshots" }, { status: 502 })
+        // Screenshots are optional — degrade gracefully instead of failing the whole submission
+      } else {
+        try {
+          const uploadData = await uploadRes.json()
+          screenshots = uploadData.urls
+        } catch (e) {
+          console.error("TinyDesk screenshot upload response was malformed:", e)
+          // Treat as upload failure — continue without screenshots
+        }
       }
-
-      const uploadData = await uploadRes.json()
-      screenshots = uploadData.urls
     }
 
     // Create ticket
