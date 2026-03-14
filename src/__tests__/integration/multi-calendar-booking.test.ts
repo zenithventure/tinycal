@@ -42,6 +42,9 @@ vi.mock("@/lib/prisma", () => ({
     booking: {
       findMany: (...args: any[]) => mockBookingFindMany(...args),
     },
+    availabilitySchedule: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
   },
 }))
 

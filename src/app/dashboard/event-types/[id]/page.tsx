@@ -5,14 +5,22 @@ import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 
+interface ScheduleOption {
+  id: string
+  name: string
+  isDefault: boolean
+}
+
 export default function EditEventTypePage() {
   const params = useParams()
   const router = useRouter()
   const [et, setEt] = useState<any>(null)
   const [saving, setSaving] = useState(false)
+  const [schedules, setSchedules] = useState<ScheduleOption[]>([])
 
   useEffect(() => {
     fetch(`/api/event-types/${params.id}`).then(r => r.json()).then(setEt)
+    fetch("/api/availability/schedules").then(r => r.json()).then(setSchedules)
   }, [params.id])
 
   async function handleSave() {
@@ -108,6 +116,31 @@ export default function EditEventTypePage() {
             <input type="number" value={et.maxFutureDays} onChange={e => setEt({ ...et, maxFutureDays: Number(e.target.value) })}
               className="w-full border rounded-lg px-3 py-2" min={1} />
           </div>
+        </div>
+
+        <hr />
+        <h3 className="font-semibold">Availability Schedule</h3>
+        <div>
+          <label className="block text-sm font-medium mb-1">Which schedule controls this event&apos;s availability?</label>
+          <select
+            value={et.availabilityScheduleId || ""}
+            onChange={e => setEt({ ...et, availabilityScheduleId: e.target.value || null })}
+            className="w-full border rounded-lg px-3 py-2 max-w-sm"
+          >
+            <option value="">Default schedule</option>
+            {schedules.map((s: ScheduleOption) => (
+              <option key={s.id} value={s.id}>
+                {s.name}{s.isDefault ? " (default)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">
+            Manage schedules on the{" "}
+            <Link href="/dashboard/availability" className="text-blue-600 hover:underline">
+              Availability
+            </Link>{" "}
+            page.
+          </p>
         </div>
 
         <hr />

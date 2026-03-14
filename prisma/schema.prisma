@@ -33,13 +33,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  eventTypes     EventType[]
-  bookings       Booking[]
-  availability   Availability[]
-  calendarConnections CalendarConnection[]
-  webhooks       Webhook[]
-  contacts       Contact[]
-  documents      Document[]
+  eventTypes            EventType[]
+  bookings              Booking[]
+  availability          Availability[]
+  availabilitySchedules AvailabilitySchedule[]
+  calendarConnections   CalendarConnection[]
+  webhooks              Webhook[]
+  contacts              Contact[]
+  documents             Document[]
 }
 
 enum Plan {
@@ -77,6 +78,10 @@ model EventType {
   // Collective scheduling
   isCollective   Boolean @default(false)
   collectiveMembers String[] // user IDs
+
+  // Availability schedule
+  availabilityScheduleId String?
+  availabilitySchedule   AvailabilitySchedule? @relation(fields: [availabilityScheduleId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -175,21 +180,41 @@ enum BookingStatus {
   NO_SHOW
 }
 
+// ─── Availability Schedules ───
+
+model AvailabilitySchedule {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rules      Availability[]
+  eventTypes EventType[]
+
+  @@unique([userId, name])
+}
+
 // ─── Availability ───
 
 model Availability {
-  id     String @id @default(cuid())
-  userId String
-  
+  id         String  @id @default(cuid())
+  userId     String
+  scheduleId String?
+
   // Day of week (0=Sunday, 6=Saturday) or specific date
   dayOfWeek Int?      // 0-6
   date      DateTime? // for date-specific overrides
-  
+
   startTime String // "09:00"
   endTime   String // "17:00"
   enabled   Boolean @default(true)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule AvailabilitySchedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
 }
 
 // ─── Calendar Connections ───
