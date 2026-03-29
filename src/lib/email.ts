@@ -88,6 +88,45 @@ export function bookingReminderEmail(data: {
 </html>`
 }
 
+export function meetingLinkInvitationEmail(data: {
+  recipientName: string
+  hostName: string
+  eventTitle: string
+  dateTime: string
+  timezone: string
+  duration: number
+  note?: string | null
+  confirmUrl: string
+}) {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1a1a1a;">
+  <div style="border-bottom: 3px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px;">
+    <h1 style="margin: 0; font-size: 20px; color: #2563eb;">Meeting Invitation</h1>
+  </div>
+  <p>Hi ${data.recipientName},</p>
+  <p><strong>${data.hostName}</strong> has invited you to a meeting.</p>
+  <div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin: 20px 0;">
+    <p style="margin: 4px 0;"><strong>${data.eventTitle}</strong></p>
+    <p style="margin: 4px 0;">${data.dateTime}</p>
+    <p style="margin: 4px 0;">${data.timezone}</p>
+    <p style="margin: 4px 0;">${data.duration} minutes</p>
+  </div>
+  ${data.note ? `<div style="background: #eff6ff; border-radius: 8px; padding: 16px; margin: 20px 0;"><p style="margin: 0; color: #1e40af;">&ldquo;${data.note}&rdquo;</p><p style="margin: 4px 0 0; font-size: 13px; color: #3b82f6;">- ${data.hostName}</p></div>` : ''}
+  <p>
+    <a href="${data.confirmUrl}" style="background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500;">
+      Confirm Meeting
+    </a>
+  </p>
+  <p style="font-size: 14px; color: #666; margin-top: 24px;">
+    If this time doesn&apos;t work, you can suggest a different time from the link above.
+  </p>
+</body>
+</html>`
+}
+
 export function bookingCancelledEmail(data: {
   name: string
   eventTitle: string

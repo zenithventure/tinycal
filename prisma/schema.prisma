@@ -151,6 +151,11 @@ model Booking {
   // Answers to custom questions
   answers       Json?
 
+  // Shareable meeting link
+  source        BookingSource @default(BOOKING_PAGE)
+  recipientNote String?
+  confirmedAt   DateTime?
+
   // Cancellation/reschedule
   cancelReason  String?
   rescheduleUid String?
@@ -168,11 +173,17 @@ model Booking {
 
 enum BookingStatus {
   PENDING
+  PENDING_CONFIRMATION
   CONFIRMED
   CANCELLED
   RESCHEDULED
   COMPLETED
   NO_SHOW
+}
+
+enum BookingSource {
+  BOOKING_PAGE
+  MEETING_LINK
 }
 
 // ─── Availability ───
