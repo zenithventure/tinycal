@@ -1,8 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { format } from "date-fns"
-import { Link2, Copy, Check, ExternalLink, MessageCircle } from "lucide-react"
+import {
+  format,
+  addMonths,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameDay,
+  isSameMonth,
+  startOfWeek,
+  endOfWeek,
+} from "date-fns"
+import { toZonedTime } from "date-fns-tz"
+import { Link2, Copy, Check, ExternalLink, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react"
 
 interface EventType {
   id: string
@@ -20,11 +31,22 @@ export default function MeetingLinksPage() {
 
   // Form state
   const [eventTypeId, setEventTypeId] = useState("")
-  const [date, setDate] = useState("")
-  const [time, setTime] = useState("")
   const [recipientName, setRecipientName] = useState("")
   const [recipientEmail, setRecipientEmail] = useState("")
   const [recipientNote, setRecipientNote] = useState("")
+
+  // Calendar + slot state
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [slots, setSlots] = useState<{ start: string; end: string }[]>([])
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [slotError, setSlotError] = useState(false)
+  const [timezone, setTimezone] = useState("")
+
+  useEffect(() => {
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  }, [])
 
   useEffect(() => {
     fetch("/api/event-types").then(r => r.json()).then((data) => {
@@ -34,15 +56,43 @@ export default function MeetingLinksPage() {
     })
   }, [])
 
+  // Fetch slots when date or event type changes
+  useEffect(() => {
+    if (!selectedDate || !timezone || !eventTypeId) return
+    setLoadingSlots(true)
+    setSlotError(false)
+    setSelectedSlot(null)
+    const dateStr = format(selectedDate, "yyyy-MM-dd")
+    fetch(`/api/slots?eventTypeId=${eventTypeId}&date=${dateStr}&timezone=${timezone}`)
+      .then(r => {
+        if (!r.ok) throw new Error("Failed to load slots")
+        return r.json()
+      })
+      .then(data => {
+        setSlots(Array.isArray(data) ? data : [])
+        setLoadingSlots(false)
+      })
+      .catch(() => {
+        setSlots([])
+        setLoadingSlots(false)
+        setSlotError(true)
+      })
+  }, [selectedDate, timezone, eventTypeId])
+
+  // Calendar
+  const monthStart = startOfMonth(currentMonth)
+  const monthEnd = endOfMonth(currentMonth)
+  const calStart = startOfWeek(monthStart)
+  const calEnd = endOfWeek(monthEnd)
+  const calDays = eachDayOfInterval({ start: calStart, end: calEnd })
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!eventTypeId || !date || !time) return
+    if (!eventTypeId || !selectedSlot) return
 
     setLoading(true)
     setError(null)
     setShareUrl(null)
-
-    const startTime = new Date(`${date}T${time}`).toISOString()
 
     try {
       const res = await fetch("/api/meeting-links", {
@@ -50,7 +100,7 @@ export default function MeetingLinksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventTypeId,
-          startTime,
+          startTime: selectedSlot,
           recipientName: recipientName || undefined,
           recipientEmail: recipientEmail || undefined,
           recipientNote: recipientNote || undefined,
@@ -90,8 +140,8 @@ export default function MeetingLinksPage() {
     setRecipientName("")
     setRecipientEmail("")
     setRecipientNote("")
-    setDate("")
-    setTime("")
+    setSelectedDate(null)
+    setSelectedSlot(null)
   }
 
   const selectedET = eventTypes.find(et => et.id === eventTypeId)
@@ -112,7 +162,7 @@ export default function MeetingLinksPage() {
               <h2 className="font-semibold">Meeting Link Created</h2>
               <p className="text-sm text-gray-600">
                 {selectedET?.title} · {selectedET?.duration} min
-                {date && time && ` · ${format(new Date(`${date}T${time}`), "MMM d 'at' h:mm a")}`}
+                {selectedSlot && ` · ${format(toZonedTime(new Date(selectedSlot), timezone), "MMM d 'at' h:mm a")}`}
               </p>
             </div>
           </div>
@@ -165,7 +215,7 @@ export default function MeetingLinksPage() {
         </div>
       ) : (
         /* Creation form */
-        <form onSubmit={handleCreate} className="bg-white border rounded-xl p-6 max-w-lg space-y-5">
+        <form onSubmit={handleCreate} className="bg-white border rounded-xl p-6 max-w-2xl space-y-5">
           {/* Event Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
@@ -174,7 +224,7 @@ export default function MeetingLinksPage() {
             ) : (
               <select
                 value={eventTypeId}
-                onChange={e => setEventTypeId(e.target.value)}
+                onChange={e => { setEventTypeId(e.target.value); setSelectedDate(null); setSelectedSlot(null) }}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               >
                 {eventTypes.map(et => (
@@ -184,34 +234,118 @@ export default function MeetingLinksPage() {
             )}
           </div>
 
-          {/* Date & Time */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                min={format(new Date(), "yyyy-MM-dd")}
-                required
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
-              <input
-                type="time"
-                value={time}
-                onChange={e => setTime(e.target.value)}
-                required
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
+          {/* Calendar + Time Slots */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Select Date & Time</label>
+            <div className="flex gap-6">
+              {/* Calendar */}
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium text-sm">{format(currentMonth, "MMMM yyyy")}</h3>
+                  <div className="flex gap-1">
+                    <button type="button" onClick={() => setCurrentMonth(addMonths(currentMonth, -1))} className="p-1 hover:bg-gray-100 rounded">
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1 hover:bg-gray-100 rounded">
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-1">
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d}>{d}</div>)}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {calDays.map(day => {
+                    const isCurrentMonth = isSameMonth(day, currentMonth)
+                    const isSelected = selectedDate && isSameDay(day, selectedDate)
+                    const isPast = day < new Date(new Date().toDateString())
+                    return (
+                      <button
+                        type="button"
+                        key={day.toISOString()}
+                        onClick={() => { setSelectedDate(day); setSelectedSlot(null) }}
+                        disabled={isPast || !isCurrentMonth}
+                        className={`h-9 rounded-lg text-sm transition ${
+                          isSelected
+                            ? "bg-blue-600 text-white font-bold"
+                            : isPast || !isCurrentMonth
+                            ? "text-gray-300"
+                            : "hover:bg-gray-100"
+                        }`}
+                      >
+                        {format(day, "d")}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Timezone */}
+                <div className="mt-3">
+                  <select
+                    value={timezone}
+                    onChange={e => setTimezone(e.target.value)}
+                    className="w-full text-xs border rounded px-2 py-1 text-gray-600"
+                  >
+                    {typeof Intl !== "undefined" && Intl.supportedValuesOf("timeZone").map(tz => (
+                      <option key={tz} value={tz}>{tz}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Time Slots */}
+              <div className="w-40">
+                {selectedDate ? (
+                  <>
+                    <h3 className="font-medium text-sm mb-2">{format(selectedDate, "EEE, MMM d")}</h3>
+                    <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                      {loadingSlots ? (
+                        [...Array(5)].map((_, i) => (
+                          <div key={i} className="h-9 bg-gray-200 animate-pulse rounded-lg" />
+                        ))
+                      ) : slotError ? (
+                        <div className="text-center">
+                          <p className="text-sm text-red-600 mb-2">Failed to load</p>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDate(new Date(selectedDate!))}
+                            className="text-sm text-blue-600 hover:underline"
+                          >
+                            Try again
+                          </button>
+                        </div>
+                      ) : slots.length === 0 ? (
+                        <p className="text-sm text-gray-500">No available times</p>
+                      ) : slots.map(slot => {
+                        const time = toZonedTime(new Date(slot.start), timezone)
+                        const isSelected = selectedSlot === slot.start
+                        return (
+                          <button
+                            type="button"
+                            key={slot.start}
+                            onClick={() => setSelectedSlot(slot.start)}
+                            className={`w-full text-sm py-2 px-3 rounded-lg border transition text-center ${
+                              isSelected ? "bg-blue-600 text-white border-blue-600" : "hover:border-blue-300"
+                            }`}
+                          >
+                            {format(time, "h:mm a")}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-400 mt-6">Select a date to see available times</p>
+                )}
+              </div>
             </div>
           </div>
 
-          {selectedET && date && time && (
+          {/* Selected slot summary */}
+          {selectedET && selectedSlot && (
             <p className="text-xs text-gray-500">
-              {format(new Date(`${date}T${time}`), "EEEE, MMMM d 'at' h:mm a")} · {selectedET.duration} min
+              {format(toZonedTime(new Date(selectedSlot), timezone), "EEEE, MMMM d 'at' h:mm a")} · {selectedET.duration} min
             </p>
           )}
 
@@ -249,7 +383,7 @@ export default function MeetingLinksPage() {
 
           <button
             type="submit"
-            disabled={loading || !eventTypeId || !date || !time}
+            disabled={loading || !eventTypeId || !selectedSlot}
             className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition"
           >
             <Link2 className="w-4 h-4" />
