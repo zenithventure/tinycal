@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
-import { Check, Calendar, Download, Clock, MapPin, User, ExternalLink } from "lucide-react"
+import { Check, Calendar, Download, Clock, MapPin, User, ExternalLink, Phone, Linkedin } from "lucide-react"
 
 interface MeetingData {
   uid: string
@@ -59,6 +59,8 @@ export default function MeetingPage() {
   // Confirm form state
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [linkedin, setLinkedin] = useState("")
   const [confirming, setConfirming] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
 
@@ -84,9 +86,11 @@ export default function MeetingPage() {
       })
   }, [uid])
 
+  const hasContactMethod = !!(email || phone || linkedin)
+
   async function handleConfirm(e: React.FormEvent) {
     e.preventDefault()
-    if (!name || !email) return
+    if (!name || !hasContactMethod) return
     setConfirming(true)
     setError(null)
 
@@ -94,7 +98,13 @@ export default function MeetingPage() {
       const res = await fetch(`/api/meeting-links/${uid}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, timezone }),
+        body: JSON.stringify({
+          name,
+          email: email || undefined,
+          phone: phone || undefined,
+          linkedin: linkedin || undefined,
+          timezone,
+        }),
       })
       if (res.ok) {
         setConfirmed(true)
@@ -311,16 +321,43 @@ export default function MeetingPage() {
                 />
               </div>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="you@example.com"
-              />
+              <p className="text-sm font-medium text-gray-700 mb-2">How can they reach you? <span className="text-gray-400 font-normal">(at least one)</span></p>
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="Email (you@example.com)"
+                  />
+                </div>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="Phone number"
+                  />
+                </div>
+                <div className="relative">
+                  <Linkedin className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={linkedin}
+                    onChange={e => setLinkedin(e.target.value)}
+                    className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="LinkedIn profile URL or handle"
+                  />
+                </div>
+              </div>
+              {!hasContactMethod && name && (
+                <p className="text-xs text-amber-600 mt-1">Please provide at least one way to reach you</p>
+              )}
             </div>
 
             {error && (
@@ -329,7 +366,7 @@ export default function MeetingPage() {
 
             <button
               type="submit"
-              disabled={confirming}
+              disabled={confirming || !name || !hasContactMethod}
               className="w-full py-2.5 rounded-lg text-white text-sm font-medium disabled:opacity-50 transition"
               style={{ backgroundColor: brandColor }}
             >
