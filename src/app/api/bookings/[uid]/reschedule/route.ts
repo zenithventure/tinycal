@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
   const conflict = await prisma.booking.findFirst({
     where: {
       userId: booking.userId,
-      status: { in: ["CONFIRMED", "PENDING"] },
+      status: { in: ["CONFIRMED", "PENDING", "PENDING_CONFIRMATION"] },
       id: { not: booking.id },
       OR: [{ startTime: { lt: end }, endTime: { gt: start } }],
     },
@@ -113,6 +113,8 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
   }
 
   // Update the booking in-place (keep same uid so reschedule/cancel links still work)
+  // If a MEETING_LINK booking is rescheduled while PENDING_CONFIRMATION, also confirm it
+  const isMeetingLinkPending = booking.source === "MEETING_LINK" && booking.status === "PENDING_CONFIRMATION"
   const updatedBooking = await prisma.booking.update({
     where: { uid: params.uid },
     data: {
@@ -120,6 +122,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
       endTime: end,
       meetingUrl,
       meetingId,
+      ...(isMeetingLinkPending && { status: "CONFIRMED", confirmedAt: new Date() }),
     },
   })
 

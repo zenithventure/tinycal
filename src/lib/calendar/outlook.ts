@@ -118,7 +118,13 @@ export async function createOutlookCalendarEvent(
 export async function updateOutlookCalendarEvent(
   userId: string,
   eventId: string,
-  event: { startTime: Date; endTime: Date }
+  event: {
+    startTime: Date
+    endTime: Date
+    summary?: string
+    description?: string
+    attendees?: { email: string }[]
+  }
 ) {
   const client = await getOutlookClient(userId)
   if (!client) return null
@@ -127,6 +133,14 @@ export async function updateOutlookCalendarEvent(
     const res = await client.api(`/me/events/${eventId}`).patch({
       start: { dateTime: event.startTime.toISOString(), timeZone: "UTC" },
       end: { dateTime: event.endTime.toISOString(), timeZone: "UTC" },
+      ...(event.summary && { subject: event.summary }),
+      ...(event.description && { body: { contentType: "HTML", content: event.description } }),
+      ...(event.attendees && {
+        attendees: event.attendees.map((a) => ({
+          emailAddress: { address: a.email },
+          type: "required",
+        })),
+      }),
     })
     return {
       id: res.id,
