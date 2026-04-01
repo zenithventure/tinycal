@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { sendEmail, bookingConfirmationEmail } from "@/lib/email"
 import { triggerWebhooks } from "@/lib/webhooks"
-import { updateGoogleCalendarEvent } from "@/lib/calendar/google"
-import { updateOutlookCalendarEvent } from "@/lib/calendar/outlook"
+import { createGoogleCalendarEvent, updateGoogleCalendarEvent } from "@/lib/calendar/google"
+import { createOutlookCalendarEvent, updateOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -79,12 +79,16 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     if (linkedin) contactLines.push(`LinkedIn: ${linkedin}`)
     const calDescription = `Confirmed by ${name}\n${contactLines.join("\n")}`
 
-    // Update sender's calendar event with recipient info
+    // Update or create calendar event with recipient info
+    const calSummary = `${booking.eventType.title} - ${name}`
+    const calAttendees = email ? [{ email }] : []
+
     if (booking.meetingId) {
+      // Calendar event exists — update it
       const calendarUpdate = {
         startTime: booking.startTime,
         endTime: booking.endTime,
-        summary: `${booking.eventType.title} - ${name}`,
+        summary: calSummary,
         description: calDescription,
         attendees: email ? [{ email }] : undefined,
       }
@@ -92,13 +96,51 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
       if (booking.location === "GOOGLE_MEET") {
         await updateGoogleCalendarEvent(booking.userId, booking.meetingId, calendarUpdate)
       } else {
-        // Try Outlook
         const outlookConn = await prisma.calendarConnection.findFirst({
           where: { userId: booking.userId, provider: "OUTLOOK" },
         })
         if (outlookConn) {
           await updateOutlookCalendarEvent(booking.userId, booking.meetingId, calendarUpdate)
         }
+      }
+    } else {
+      // Calendar event was never created (e.g. token expired at creation time) — create it now
+      let calResult: { id?: string | null; meetingUrl?: string | null } | null = null
+
+      if (booking.location === "GOOGLE_MEET") {
+        calResult = await createGoogleCalendarEvent(booking.userId, {
+          summary: calSummary,
+          description: calDescription,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          attendees: calAttendees,
+          conferenceData: true,
+        })
+      } else {
+        const outlookConn = await prisma.calendarConnection.findFirst({
+          where: { userId: booking.userId, provider: "OUTLOOK" },
+        })
+        if (outlookConn) {
+          calResult = await createOutlookCalendarEvent(booking.userId, {
+            summary: calSummary,
+            description: calDescription,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            attendees: calAttendees,
+            isOnline: true,
+          })
+        }
+      }
+
+      // Persist the calendar event info on the booking
+      if (calResult?.id || calResult?.meetingUrl) {
+        await prisma.booking.update({
+          where: { uid: params.uid },
+          data: {
+            meetingId: calResult.id || undefined,
+            meetingUrl: calResult.meetingUrl || undefined,
+          },
+        })
       }
     }
 
