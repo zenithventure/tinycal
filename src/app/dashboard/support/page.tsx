@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { Check, ImagePlus, X } from "lucide-react"
+import { Check, ExternalLink, ImagePlus, X } from "lucide-react"
 
 const categories = [
   "Bug Report",
@@ -20,7 +20,7 @@ export default function SupportPage() {
   const [message, setMessage] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [ticket, setTicket] = useState<{ ticketId: string; trackingUrl: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -62,7 +62,8 @@ export default function SupportPage() {
     })
 
     if (res.ok) {
-      setSent(true)
+      const data = await res.json()
+      setTicket({ ticketId: data.ticketId, trackingUrl: data.trackingUrl })
     } else {
       const data = await res.json().catch(() => ({}))
       setError(data.error || "Something went wrong. Please try again.")
@@ -70,23 +71,36 @@ export default function SupportPage() {
     setLoading(false)
   }
 
-  if (sent) {
+  if (ticket) {
     return (
       <div className="max-w-lg mx-auto mt-12 text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <Check className="w-8 h-8 text-green-600" />
         </div>
-        <h1 className="text-2xl font-bold mb-2">Message Sent</h1>
-        <p className="text-gray-600 mb-6">
-          We&apos;ve received your support request and sent a confirmation to your email.
-          We&apos;ll get back to you as soon as possible.
+        <h1 className="text-2xl font-bold mb-2">Ticket Submitted</h1>
+        <p className="text-gray-600 mb-2">
+          Your support ticket <span className="font-semibold text-gray-900">{ticket.ticketId}</span> has been created.
         </p>
-        <button
-          onClick={() => { setSent(false); setSubject(""); setMessage(""); setCategory(""); setFiles([]) }}
-          className="text-blue-600 hover:underline text-sm"
-        >
-          Send another message
-        </button>
+        <p className="text-gray-600 mb-6">
+          You can track the progress of your ticket at any time.
+        </p>
+        <div className="flex flex-col items-center gap-3">
+          <a
+            href={ticket.trackingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition"
+          >
+            Track Ticket
+            <ExternalLink className="w-4 h-4" />
+          </a>
+          <button
+            onClick={() => { setTicket(null); setSubject(""); setMessage(""); setCategory(""); setFiles([]) }}
+            className="text-blue-600 hover:underline text-sm"
+          >
+            Submit another ticket
+          </button>
+        </div>
       </div>
     )
   }
@@ -94,7 +108,7 @@ export default function SupportPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-1">Support</h1>
-      <p className="text-gray-600 mb-6">Have a question or issue? Send us a message and we&apos;ll get back to you.</p>
+      <p className="text-gray-600 mb-6">Have a question or issue? Submit a ticket and track its progress.</p>
 
       <form onSubmit={handleSubmit} className="max-w-lg space-y-4">
         <div>
@@ -179,7 +193,7 @@ export default function SupportPage() {
           disabled={loading || !subject.trim() || !message.trim()}
           className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
         >
-          {loading ? "Sending..." : "Send Message"}
+          {loading ? "Submitting..." : "Submit Ticket"}
         </button>
       </form>
     </div>
