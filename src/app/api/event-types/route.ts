@@ -9,7 +9,11 @@ export async function GET() {
 
   const eventTypes = await prisma.eventType.findMany({
     where: { userId: user.id },
-    include: { questions: { orderBy: { order: "asc" } }, _count: { select: { bookings: true } } },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      availabilitySchedule: { select: { id: true, name: true } },
+      _count: { select: { bookings: true } },
+    },
     orderBy: { createdAt: "desc" },
   })
   return NextResponse.json(eventTypes)
@@ -52,6 +56,7 @@ export async function POST(req: Request) {
       currency: body.currency || "usd",
       isCollective: body.isCollective || false,
       collectiveMembers: body.collectiveMembers || [],
+      availabilityScheduleId: body.availabilityScheduleId || null,
       questions: body.questions?.length ? {
         create: body.questions.map((q: any, i: number) => ({
           label: q.label,

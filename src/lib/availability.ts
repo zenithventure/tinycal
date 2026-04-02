@@ -20,13 +20,32 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
   const { userId, eventTypeId, startDate, endDate, timezone: _timezone } = options
 
   // Get user and event type
-  const [user, eventType, availabilityRules] = await Promise.all([
+  const [user, eventType] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     prisma.eventType.findUnique({ where: { id: eventTypeId } }),
-    prisma.availability.findMany({ where: { userId, enabled: true } }),
   ])
 
   if (!user || !eventType) return []
+
+  // Resolve availability rules:
+  // 1. Event type's linked schedule (if set)
+  // 2. User's default schedule (if any)
+  // 3. Legacy unscoped rules (scheduleId is null)
+  let scheduleId: string | null = null
+  if (eventType.availabilityScheduleId) {
+    scheduleId = eventType.availabilityScheduleId
+  } else {
+    const defaultSchedule = await prisma.availabilitySchedule.findFirst({
+      where: { userId, isDefault: true },
+    })
+    if (defaultSchedule) scheduleId = defaultSchedule.id
+  }
+
+  const availabilityRules = await prisma.availability.findMany({
+    where: scheduleId
+      ? { scheduleId, enabled: true }
+      : { userId, scheduleId: null, enabled: true },
+  })
 
   const duration = eventType.duration
   const bufferBefore = eventType.bufferBefore
