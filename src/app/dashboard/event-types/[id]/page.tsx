@@ -5,14 +5,22 @@ import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 
+interface Schedule {
+  id: string
+  name: string
+  isDefault: boolean
+}
+
 export default function EditEventTypePage() {
   const params = useParams()
   const router = useRouter()
   const [et, setEt] = useState<any>(null)
+  const [schedules, setSchedules] = useState<Schedule[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetch(`/api/event-types/${params.id}`).then(r => r.json()).then(setEt)
+    fetch("/api/availability/schedules").then(r => r.json()).then(setSchedules)
   }, [params.id])
 
   async function handleSave() {
@@ -76,7 +84,27 @@ export default function EditEventTypePage() {
         </div>
 
         <hr />
-        <h3 className="font-semibold">Scheduling Rules</h3>
+        <h3 className="font-semibold">Availability & Scheduling</h3>
+        <div>
+          <label className="block text-sm font-medium mb-1">Availability Schedule</label>
+          <select
+            value={et.availabilityScheduleId || ""}
+            onChange={e => setEt({ ...et, availabilityScheduleId: e.target.value || null })}
+            className="w-full border rounded-lg px-3 py-2"
+          >
+            <option value="">Use user default schedule</option>
+            {schedules.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.name} {s.isDefault ? "(default)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Event type schedules override user defaults.
+          </p>
+        </div>
+
+        <h3 className="font-semibold mt-4">Scheduling Rules</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Buffer before (min)</label>

@@ -29,6 +29,9 @@ model User {
   brandColor    String   @default("#2563eb")
   brandLogo     String?
   slug          String?  @unique
+  
+  // Default availability schedule
+  defaultAvailabilityScheduleId String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -36,15 +39,54 @@ model User {
   eventTypes     EventType[]
   bookings       Booking[]
   availability   Availability[]
+  availabilitySchedules AvailabilitySchedule[]
   calendarConnections CalendarConnection[]
   webhooks       Webhook[]
   contacts       Contact[]
   documents      Document[]
+  defaultAvailabilitySchedule AvailabilitySchedule? @relation("defaultSchedule", fields: [defaultAvailabilityScheduleId], references: [id])
 }
 
 enum Plan {
   FREE
   PRO
+}
+
+// ─── Availability Schedules ───
+
+model AvailabilitySchedule {
+  id            String  @id @default(cuid())
+  userId        String
+  name          String
+  isDefault     Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rules      AvailabilityRule[]
+  eventTypes EventType[]
+  defaultForUser User? @relation("defaultSchedule")
+
+  @@unique([userId, name])
+  @@index([userId, isDefault])
+}
+
+model AvailabilityRule {
+  id                    String  @id @default(cuid())
+  availabilityScheduleId String
+  
+  // Day of week (0=Sunday, 6=Saturday) or specific date
+  dayOfWeek Int?      // 0-6
+  date      DateTime? // for date-specific overrides
+  
+  startTime String // "09:00"
+  endTime   String // "17:00"
+  enabled   Boolean @default(true)
+
+  schedule AvailabilitySchedule @relation(fields: [availabilityScheduleId], references: [id], onDelete: Cascade)
+  
+  @@unique([availabilityScheduleId, dayOfWeek, date])
 }
 
 // ─── Scheduling: Event Types ───
@@ -77,6 +119,9 @@ model EventType {
   // Collective scheduling
   isCollective   Boolean @default(false)
   collectiveMembers String[] // user IDs
+  
+  // Availability Schedule
+  availabilityScheduleId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -84,6 +129,7 @@ model EventType {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookings  Booking[]
   questions CustomQuestion[]
+  availabilitySchedule AvailabilitySchedule? @relation(fields: [availabilityScheduleId], references: [id], onDelete: SetNull)
 
   @@unique([userId, slug])
 }

@@ -39,7 +39,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       price: body.price,
       isCollective: body.isCollective,
       collectiveMembers: body.collectiveMembers,
+      availabilityScheduleId: body.availabilityScheduleId,
     },
+    include: { questions: { orderBy: { order: "asc" } } },
   })
   return NextResponse.json(eventType)
 }
