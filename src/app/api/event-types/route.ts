@@ -30,6 +30,22 @@ export async function POST(req: Request) {
     }
   }
 
+  // Ownership check for the optional availability-schedule pointer — without
+  // this a user could link their event type to someone else's schedule, which
+  // would leak that user's hours via the booking page.
+  if (body.availabilityScheduleId) {
+    const schedule = await prisma.availabilitySchedule.findFirst({
+      where: { id: body.availabilityScheduleId, userId },
+      select: { id: true },
+    })
+    if (!schedule) {
+      return NextResponse.json(
+        { error: "availabilityScheduleId does not resolve to a schedule you own" },
+        { status: 400 }
+      )
+    }
+  }
+
   const slug = generateSlug(body.title)
   const eventType = await prisma.eventType.create({
     data: {
@@ -52,6 +68,7 @@ export async function POST(req: Request) {
       currency: body.currency || "usd",
       isCollective: body.isCollective || false,
       collectiveMembers: body.collectiveMembers || [],
+      availabilityScheduleId: body.availabilityScheduleId,
       questions: body.questions?.length ? {
         create: body.questions.map((q: any, i: number) => ({
           label: q.label,
