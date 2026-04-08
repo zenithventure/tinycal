@@ -8,7 +8,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const eventType = await prisma.eventType.findFirst({
     where: { id: params.id, userId: user.id },
-    include: { questions: { orderBy: { order: "asc" } } },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      availabilitySchedule: { select: { id: true, name: true } },
+    },
   })
   if (!eventType) return NextResponse.json({ error: "Not found" }, { status: 404 })
   return NextResponse.json(eventType)
@@ -39,6 +42,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       price: body.price,
       isCollective: body.isCollective,
       collectiveMembers: body.collectiveMembers,
+      ...(body.availabilityScheduleId !== undefined && {
+        availabilityScheduleId: body.availabilityScheduleId,
+      }),
     },
   })
   return NextResponse.json(eventType)
