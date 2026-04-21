@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       currency: body.currency || "usd",
       isCollective: body.isCollective || false,
       collectiveMembers: body.collectiveMembers || [],
+      availabilityScheduleId: body.availabilityScheduleId,
       questions: body.questions?.length ? {
         create: body.questions.map((q: any, i: number) => ({
           label: q.label,

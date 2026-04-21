@@ -8,6 +8,14 @@ interface TimeSlot {
   end: Date
 }
 
+interface AvailabilityRuleLike {
+  dayOfWeek: number | null
+  date: Date | null
+  startTime: string
+  endTime: string
+  enabled: boolean
+}
+
 interface AvailabilityOptions {
   userId: string
   eventTypeId: string
@@ -16,17 +24,51 @@ interface AvailabilityOptions {
   timezone: string
 }
 
+export async function resolveAvailabilityRules(
+  userId: string,
+  eventType: { availabilityScheduleId: string | null }
+): Promise<AvailabilityRuleLike[]> {
+  // 1. Event type's linked schedule
+  if (eventType.availabilityScheduleId) {
+    const rules = await prisma.availabilityRule.findMany({
+      where: { availabilityScheduleId: eventType.availabilityScheduleId, enabled: true },
+    })
+    if (rules.length > 0) return rules
+  }
+
+  // 2. User's default schedule
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { defaultAvailabilityScheduleId: true },
+  })
+  if (user?.defaultAvailabilityScheduleId) {
+    const rules = await prisma.availabilityRule.findMany({
+      where: { availabilityScheduleId: user.defaultAvailabilityScheduleId, enabled: true },
+    })
+    if (rules.length > 0) return rules
+  }
+
+  // 3. Legacy Availability records
+  return prisma.availability.findMany({ where: { userId, enabled: true } })
+}
+
 export async function getAvailableSlots(options: AvailabilityOptions): Promise<TimeSlot[]> {
   const { userId, eventTypeId, startDate, endDate, timezone: _timezone } = options
 
   // Get user and event type
-  const [user, eventType, availabilityRules] = await Promise.all([
+  const [user, eventType] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     prisma.eventType.findUnique({ where: { id: eventTypeId } }),
-    prisma.availability.findMany({ where: { userId, enabled: true } }),
   ])
 
   if (!user || !eventType) return []
+
+  // Resolve availability rules via fallback chain:
+  // 1. Event type's linked schedule
+  // 2. User's default schedule
+  // 3. Legacy Availability records
+  const availabilityRules = await resolveAvailabilityRules(userId, eventType)
+
 
   const duration = eventType.duration
   const bufferBefore = eventType.bufferBefore
