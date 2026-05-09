@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma"
 import { sendEmail, bookingCancelledEmail } from "@/lib/email"
 import { deleteGoogleCalendarEvent } from "@/lib/calendar/google"
 import { triggerWebhooks } from "@/lib/webhooks"
+import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -57,7 +58,8 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     console.error("Cancel email failed:", e)
   }
 
-  await triggerWebhooks(booking.userId, "booking.cancelled", booking)
+  const payload = await buildBookingPayload(booking.id)
+  if (payload) await triggerWebhooks(booking.userId, "booking.cancelled", payload)
 
   return NextResponse.json({ success: true })
 }

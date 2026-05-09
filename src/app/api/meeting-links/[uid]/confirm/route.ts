@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { sendEmail, bookingConfirmationEmail } from "@/lib/email"
 import { triggerWebhooks } from "@/lib/webhooks"
+import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { createGoogleCalendarEvent, updateGoogleCalendarEvent } from "@/lib/calendar/google"
 import { createOutlookCalendarEvent, updateOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { format } from "date-fns"
@@ -197,7 +198,8 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     }
 
     // Trigger webhooks
-    await triggerWebhooks(booking.userId, "booking.created", updatedBooking)
+    const payload = await buildBookingPayload(updatedBooking.id)
+    if (payload) await triggerWebhooks(booking.userId, "booking.created", payload)
 
     return NextResponse.json(updatedBooking)
   } catch (error) {

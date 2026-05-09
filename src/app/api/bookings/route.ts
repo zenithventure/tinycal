@@ -6,6 +6,7 @@ import { createGoogleCalendarEvent } from "@/lib/calendar/google"
 import { createOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { createZoomMeeting } from "@/lib/video"
 import { triggerWebhooks } from "@/lib/webhooks"
+import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { hasBookingConflict } from "@/lib/bookings/conflict-check"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
@@ -148,7 +149,8 @@ export async function POST(req: Request) {
     }
 
     // Trigger webhooks
-    await triggerWebhooks(eventType.userId, "booking.created", booking)
+    const payload = await buildBookingPayload(booking.id)
+    if (payload) await triggerWebhooks(eventType.userId, "booking.created", payload)
 
     // Also create calendar event in Outlook if connected
     if (eventType.location !== "GOOGLE_MEET") {

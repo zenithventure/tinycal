@@ -110,7 +110,9 @@ Configure webhooks in the dashboard. Events:
 - `booking.cancelled`
 - `booking.rescheduled`
 
-Webhook payloads include `X-Webhook-Signature` header (HMAC-SHA256).
+Webhook payloads include `X-Webhook-Signature` header (HMAC-SHA256, bare hex).
+See [docs/webhooks.md](docs/webhooks.md) for the payload schema and signature
+verification examples.
 
 ## Deployment
 
