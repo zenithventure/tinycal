@@ -4,6 +4,7 @@ import { sendEmail, bookingConfirmationEmail } from "@/lib/email"
 import { updateGoogleCalendarEvent, createGoogleCalendarEvent } from "@/lib/calendar/google"
 import { updateOutlookCalendarEvent, createOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { triggerWebhooks } from "@/lib/webhooks"
+import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -176,7 +177,11 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     console.error("Host reschedule email failed:", e)
   }
 
-  await triggerWebhooks(booking.userId, "booking.rescheduled", { old: booking, new: updatedBooking })
+  const payload = await buildBookingPayload(booking.id, {
+    previousStartTime: booking.startTime,
+    previousEndTime: booking.endTime,
+  })
+  if (payload) await triggerWebhooks(booking.userId, "booking.rescheduled", payload)
 
   return NextResponse.json({
     ...updatedBooking,
