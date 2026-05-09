@@ -5,6 +5,7 @@ import { updateGoogleCalendarEvent, createGoogleCalendarEvent } from "@/lib/cale
 import { updateOutlookCalendarEvent, createOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
+import { hasBookingConflict } from "@/lib/bookings/conflict-check"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -23,16 +24,16 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
   const start = new Date(newStartTime)
   const end = new Date(start.getTime() + booking.eventType.duration * 60000)
 
-  // Check for conflicts
-  const conflict = await prisma.booking.findFirst({
-    where: {
-      userId: booking.userId,
-      status: { in: ["CONFIRMED", "PENDING", "PENDING_CONFIRMATION"] },
-      id: { not: booking.id },
-      OR: [{ startTime: { lt: end }, endTime: { gt: start } }],
-    },
-  })
-  if (conflict) return NextResponse.json({ error: "Time slot no longer available" }, { status: 409 })
+  if (
+    await hasBookingConflict({
+      eventType: booking.eventType,
+      start,
+      end,
+      excludeBookingId: booking.id,
+    })
+  ) {
+    return NextResponse.json({ error: "Time slot no longer available" }, { status: 409 })
+  }
 
   // Update existing calendar event in-place (preserves event thread, attendee responses, Meet link)
   let meetingUrl = booking.meetingUrl || undefined

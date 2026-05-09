@@ -76,7 +76,19 @@ See `.env.example` for all required variables. Key variables:
 
 ### REST API (v1)
 
-All API requests require `Authorization: Bearer <user-id>` header.
+All API requests require `Authorization: Bearer <api-key>` header.
+
+API keys are minted in **Settings → API Keys** (or, until that ships, via
+`npx tsx scripts/create-api-key.ts <userIdOrEmail> "<name>"`). Keys have the
+form `tc_live_<prefix>_<secret>` and are only shown once at creation.
+
+Per-key rate limit: **60 requests/minute**. Responses include
+`X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`
+(epoch seconds) headers; `429` responses include `Retry-After` (seconds).
+
+> **Deprecated:** passing your raw `User.id` as the Bearer token still works
+> but returns a `Warning: 299 - "tc-legacy-api-key"` header. This path will
+> be removed in a future release — migrate to a real API key.
 
 #### Event Types
 - `GET /api/v1/event-types` — List all event types

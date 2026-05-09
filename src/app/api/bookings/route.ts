@@ -7,6 +7,7 @@ import { createOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { createZoomMeeting } from "@/lib/video"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
+import { hasBookingConflict } from "@/lib/bookings/conflict-check"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -37,17 +38,9 @@ export async function POST(req: Request) {
     const start = new Date(startTime)
     const end = new Date(start.getTime() + eventType.duration * 60000)
 
-    // Check for conflicts
-    const conflict = await prisma.booking.findFirst({
-      where: {
-        userId: eventType.userId,
-        status: { in: ["CONFIRMED", "PENDING"] },
-        OR: [
-          { startTime: { lt: end }, endTime: { gt: start } },
-        ],
-      },
-    })
-    if (conflict) return NextResponse.json({ error: "Time slot no longer available" }, { status: 409 })
+    if (await hasBookingConflict({ eventType, start, end })) {
+      return NextResponse.json({ error: "Time slot no longer available" }, { status: 409 })
+    }
 
     // Generate meeting link
     let meetingUrl: string | undefined

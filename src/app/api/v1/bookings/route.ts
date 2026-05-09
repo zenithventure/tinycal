@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
-
-async function authenticateApiKey(req: Request) {
-  const auth = req.headers.get("Authorization")
-  if (!auth?.startsWith("Bearer ")) return null
-  const apiKey = auth.slice(7)
-  return prisma.user.findUnique({ where: { id: apiKey } })
-}
+import { authenticateApiKey, isAuthFailure, applyAuthResponseHeaders } from "@/lib/api-keys/auth"
 
 export async function GET(req: Request) {
-  const user = await authenticateApiKey(req)
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const auth = await authenticateApiKey(req)
+  if (isAuthFailure(auth)) return auth
 
   const url = new URL(req.url)
   const status = url.searchParams.get("status")
@@ -19,7 +13,7 @@ export async function GET(req: Request) {
 
   const bookings = await prisma.booking.findMany({
     where: {
-      userId: user.id,
+      userId: auth.user.id,
       ...(status && { status: status as any }),
       ...(from && { startTime: { gte: new Date(from) } }),
       ...(to && { endTime: { lte: new Date(to) } }),
@@ -28,5 +22,5 @@ export async function GET(req: Request) {
     orderBy: { startTime: "desc" },
     take: 100,
   })
-  return NextResponse.json({ data: bookings })
+  return applyAuthResponseHeaders(NextResponse.json({ data: bookings }), auth)
 }
