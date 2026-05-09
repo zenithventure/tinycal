@@ -40,6 +40,7 @@ model User {
   webhooks       Webhook[]
   contacts       Contact[]
   documents      Document[]
+  apiKeys        ApiKey[]
 }
 
 enum Plan {
@@ -264,6 +265,40 @@ model Contact {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, email])
+}
+
+// ─── API Keys ───
+
+model ApiKey {
+  id           String    @id @default(cuid())
+  userId       String
+  prefix       String    @unique // 8-hex public lookup key, also displayed in UI
+  hashedSecret String             // sha256(secret) hex; 32-byte random secret
+  name         String             // user-given label, e.g. "Mira concierge bot"
+  scopes       String[]           // future-proofing; empty = full account access
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usage ApiKeyUsage[]
+
+  @@index([userId])
+}
+
+// Per-minute counter for rate limiting. One row per (key, minute window).
+// Old rows can be pruned by cron; the unique constraint enables upsert-increment.
+model ApiKeyUsage {
+  id          String   @id @default(cuid())
+  apiKeyId    String
+  windowStart DateTime // truncated to start of minute (UTC)
+  count       Int      @default(0)
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, windowStart])
+  @@index([windowStart])
 }
 
 // ─── Documents (E-Signature - schema ready for Module 2) ───
