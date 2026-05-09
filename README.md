@@ -91,7 +91,7 @@ Per-key rate limit: **60 requests/minute**. Responses include
 > be removed in a future release — migrate to a real API key.
 
 #### Event Types
-- `GET /api/v1/event-types` — List all event types
+- `GET /api/v1/event-types` — List all event types (supports `?slug=<slug>` filter)
 - `POST /api/v1/event-types` — Create event type
 
 #### Bookings

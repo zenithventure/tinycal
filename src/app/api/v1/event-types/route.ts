@@ -6,8 +6,13 @@ export async function GET(req: Request) {
   const auth = await authenticateApiKey(req)
   if (isAuthFailure(auth)) return auth
 
+  const slug = new URL(req.url).searchParams.get("slug")
+
   const eventTypes = await prisma.eventType.findMany({
-    where: { userId: auth.user.id },
+    where: {
+      userId: auth.user.id,
+      ...(slug && { slug }),
+    },
     include: { questions: true, _count: { select: { bookings: true } } },
   })
   return applyAuthResponseHeaders(NextResponse.json({ data: eventTypes }), auth)
