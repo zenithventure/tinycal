@@ -5,6 +5,7 @@ const publicRoutes = [
   '/', '/login',
   '/api/webhooks', '/api/availability', '/api/bookings',
   '/api/slots', '/api/stripe/webhook', '/api/auth',
+  '/api/meeting-links',
 ]
 
 function isPublicRoute(pathname: string): boolean {
@@ -12,7 +13,7 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 function isPublicDynamicRoute(pathname: string): boolean {
-  if (['/book/', '/cancel/', '/reschedule/'].some(p => pathname.startsWith(p))) return true
+  if (['/book/', '/cancel/', '/reschedule/', '/m/'].some(p => pathname.startsWith(p))) return true
   const segments = pathname.split('/').filter(Boolean)
   const reserved = ['dashboard', 'api', 'login', '_next']
   // /{slug} (user profile) or /{slug}/{event-type} (booking page)

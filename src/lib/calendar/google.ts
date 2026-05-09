@@ -111,7 +111,13 @@ export async function createGoogleCalendarEvent(
 export async function updateGoogleCalendarEvent(
   userId: string,
   eventId: string,
-  event: { startTime: Date; endTime: Date }
+  event: {
+    startTime: Date
+    endTime: Date
+    summary?: string
+    description?: string
+    attendees?: { email: string }[]
+  }
 ) {
   const calendar = await getGoogleCalendarClient(userId)
   if (!calendar) return null
@@ -124,6 +130,9 @@ export async function updateGoogleCalendarEvent(
       requestBody: {
         start: { dateTime: event.startTime.toISOString() },
         end: { dateTime: event.endTime.toISOString() },
+        ...(event.summary && { summary: event.summary }),
+        ...(event.description && { description: event.description }),
+        ...(event.attendees && { attendees: event.attendees }),
       },
     })
     return {

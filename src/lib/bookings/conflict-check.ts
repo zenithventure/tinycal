@@ -35,7 +35,7 @@ export async function hasBookingConflict({
         prisma.booking.findFirst({
           where: {
             userId,
-            status: { in: ["CONFIRMED", "PENDING"] },
+            status: { in: ["CONFIRMED", "PENDING", "PENDING_CONFIRMATION"] },
             ...(excludeBookingId && { id: { not: excludeBookingId } }),
             startTime: { lt: end },
             endTime: { gt: start },

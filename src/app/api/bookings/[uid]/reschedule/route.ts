@@ -114,6 +114,8 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
   }
 
   // Update the booking in-place (keep same uid so reschedule/cancel links still work)
+  // If a MEETING_LINK booking is rescheduled while PENDING_CONFIRMATION, also confirm it
+  const isMeetingLinkPending = booking.source === "MEETING_LINK" && booking.status === "PENDING_CONFIRMATION"
   const updatedBooking = await prisma.booking.update({
     where: { uid: params.uid },
     data: {
@@ -121,6 +123,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
       endTime: end,
       meetingUrl,
       meetingId,
+      ...(isMeetingLinkPending && { status: "CONFIRMED", confirmedAt: new Date() }),
     },
   })
 

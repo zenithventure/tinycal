@@ -137,6 +137,7 @@ model Booking {
   bookerEmail   String
   bookerTimezone String
   bookerPhone   String?
+  bookerLinkedin String?
   
   // Meeting
   location      LocationType
@@ -150,6 +151,11 @@ model Booking {
 
   // Answers to custom questions
   answers       Json?
+
+  // Shareable meeting link
+  source        BookingSource @default(BOOKING_PAGE)
+  recipientNote String?
+  confirmedAt   DateTime?
 
   // Cancellation/reschedule
   cancelReason  String?
@@ -168,11 +174,17 @@ model Booking {
 
 enum BookingStatus {
   PENDING
+  PENDING_CONFIRMATION
   CONFIRMED
   CANCELLED
   RESCHEDULED
   COMPLETED
   NO_SHOW
+}
+
+enum BookingSource {
+  BOOKING_PAGE
+  MEETING_LINK
 }
 
 // ─── Availability ───
@@ -239,8 +251,9 @@ model Contact {
   id        String  @id @default(cuid())
   userId    String
   name      String
-  email     String
+  email     String?
   phone     String?
+  linkedin  String?
   company   String?
   notes     String?
   source    String? // booking, signature, manual
