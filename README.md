@@ -78,9 +78,9 @@ See `.env.example` for all required variables. Key variables:
 
 All API requests require `Authorization: Bearer <api-key>` header.
 
-API keys are minted in **Settings → API Keys** (or, until that ships, via
-`npx tsx scripts/create-api-key.ts <userIdOrEmail> "<name>"`). Keys have the
-form `tc_live_<prefix>_<secret>` and are only shown once at creation.
+API keys are minted in **Dashboard → API Keys** (or via
+`npx tsx scripts/create-api-key.ts <userIdOrEmail> "<name>"` for ops automation).
+Keys have the form `tc_live_<prefix>_<secret>` and are only shown once at creation.
 
 Per-key rate limit: **60 requests/minute**. Responses include
 `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`
@@ -117,28 +117,25 @@ verification examples.
 
 ## Deployment
 
-### AWS Amplify (Production)
+Production runs on **Vercel** (Next.js SSR + Fluid Compute) with **Neon** serverless PostgreSQL.
 
-TinyCal deploys on AWS Amplify with Neon serverless PostgreSQL:
+**Auto-deploy:**
+- Push to `main` → production deploy at `tinycal.zenithstudio.app`
+- PR branch → preview deployment URL on the PR
 
-**Infrastructure:**
-- **AWS Amplify** — Next.js SSR hosting with auto-scaling
-- **Neon** — Serverless PostgreSQL database
-
-**Deployment:**
-```bash
-# Amplify automatically deploys on:
-# - Push to main -> Dev
-# - Tag v1.2.3-qa -> QA
-# - Tag v1.2.3 -> Prod (requires approval)
+**Build pipeline** (`package.json` `build` script):
+```
+prisma generate && next build
 ```
 
-**Account Structure:**
-| Environment | Deploy Trigger | Account |
-|-------------|----------------|---------|
-| Dev | Push to `main` | TinyCal-Dev |
-| QA | Tag `v*-qa` | TinyCal-QA |
-| Prod | Tag `v*` | TinyCal-Prod |
+**Database migrations** are applied separately by `.github/workflows/deploy-migrations.yml` — a GitHub Action that triggers on push to `main` when `prisma/**` changes. This intentionally decouples schema changes from app builds: deploys without schema changes skip the migrate step, and Vercel preview deployments never run migrations against production. The action can also be triggered manually from the Actions UI for ad-hoc runs.
+
+**Environment variables** are managed via the Vercel dashboard (Project → Settings → Environment Variables), or pulled locally with:
+```bash
+vercel env pull .env.local --environment=production
+```
+
+**Rolling back:** Vercel dashboard → Deployments → pick a previous build → "Promote to Production". Note this rolls back code only — Prisma migrations are forward-only, so a rollback to a build that predates a migration won't undo the schema change. If you need to revert a migration, write a new one.
 
 ### Local Development with Docker
 

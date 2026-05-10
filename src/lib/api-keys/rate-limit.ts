@@ -17,8 +17,9 @@ export interface RateLimitResult {
 }
 
 // Atomically increments the counter for (apiKeyId, current minute) and returns
-// whether the request is allowed. Backed by ApiKeyUsage so it survives across
-// instances (Amplify can scale horizontally) without needing a shared cache.
+// whether the request is allowed. Backed by ApiKeyUsage so the limit holds
+// across Vercel function instances (Fluid Compute reuses instances but doesn't
+// guarantee a single one) without needing a shared cache.
 export async function checkRateLimit(apiKeyId: string, now = new Date()): Promise<RateLimitResult> {
   const windowStart = windowStartFor(now)
   const resetAt = new Date(windowStart.getTime() + 60_000)
