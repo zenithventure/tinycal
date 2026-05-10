@@ -281,8 +281,9 @@ model ApiKey {
   revokedAt    DateTime?
   createdAt    DateTime  @default(now())
 
-  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  usage ApiKeyUsage[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usage            ApiKeyUsage[]
+  idempotencyKeys  IdempotencyKey[]
 
   @@index([userId])
 }
@@ -299,6 +300,26 @@ model ApiKeyUsage {
 
   @@unique([apiKeyId, windowStart])
   @@index([windowStart])
+}
+
+// Idempotency cache for /api/v1/* mutating endpoints. Scoped per API key so
+// the same Idempotency-Key value from two different bots can't collide.
+// Only successful responses are cached (clients should be free to retry on
+// failure with the same key). Stale rows (>24h) are treated as not-found and
+// can be pruned by cron.
+model IdempotencyKey {
+  id             String   @id @default(cuid())
+  apiKeyId       String
+  key            String
+  requestHash    String   // sha256(canonicalJson(body))
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now())
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, key])
+  @@index([createdAt])
 }
 
 // ─── Documents (E-Signature - schema ready for Module 2) ───

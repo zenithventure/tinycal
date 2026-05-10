@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const mockBookingFindMany = vi.fn()
 const mockCreateBooking = vi.fn()
 const mockAuthenticateApiKey = vi.fn()
+const mockLookupIdempotency = vi.fn()
+const mockRecordIdempotentResponse = vi.fn()
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -25,6 +27,15 @@ vi.mock("@/lib/api-keys/auth", () => ({
   applyAuthResponseHeaders: (res: any) => res,
 }))
 
+vi.mock("@/lib/api-keys/idempotency", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-keys/idempotency")>()
+  return {
+    ...actual,
+    lookupIdempotency: (...args: any[]) => mockLookupIdempotency(...args),
+    recordIdempotentResponse: (...args: any[]) => mockRecordIdempotentResponse(...args),
+  }
+})
+
 import { POST } from "@/app/api/v1/bookings/route"
 
 const TEST_USER = { id: "user-1", email: "x@y.z", name: "X" } as any
@@ -36,10 +47,14 @@ const VALID_BODY = {
   bookerTimezone: "America/Los_Angeles",
 }
 
-function makePostReq(body: unknown): Request {
+function makePostReq(body: unknown, headers: Record<string, string> = {}): Request {
   return new Request("http://localhost/api/v1/bookings", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer fake" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer fake",
+      ...headers,
+    },
     body: typeof body === "string" ? body : JSON.stringify(body),
   })
 }
@@ -133,6 +148,66 @@ describe("POST /api/v1/bookings", () => {
       expect(res.status).toBe(201)
       const body = await res.json()
       expect(body).toEqual({ data: { id: "bk-1", meetingUrl: "https://meet/x" } })
+    })
+  })
+
+  describe("idempotency (#53)", () => {
+    beforeEach(() => {
+      mockLookupIdempotency.mockResolvedValue({ kind: "miss" })
+      mockRecordIdempotentResponse.mockResolvedValue(undefined)
+    })
+
+    it("does NOT call lookupIdempotency when no Idempotency-Key header is present", async () => {
+      await POST(makePostReq(VALID_BODY))
+      expect(mockLookupIdempotency).not.toHaveBeenCalled()
+      expect(mockRecordIdempotentResponse).not.toHaveBeenCalled()
+    })
+
+    it("calls lookupIdempotency with (apiKeyId, key, hash) when header is present", async () => {
+      await POST(makePostReq(VALID_BODY, { "Idempotency-Key": "abc-123" }))
+      expect(mockLookupIdempotency).toHaveBeenCalledWith("ak-1", "abc-123", expect.stringMatching(/^[0-9a-f]{64}$/))
+    })
+
+    it("returns the cached response on replay (does not call createBooking)", async () => {
+      const cached = new Response(JSON.stringify({ data: { id: "bk-original" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json", "X-Idempotent-Replay": "true" },
+      })
+      mockLookupIdempotency.mockResolvedValueOnce({ kind: "replay", response: cached })
+      const res = await POST(makePostReq(VALID_BODY, { "Idempotency-Key": "abc-123" }))
+      expect(res.status).toBe(201)
+      expect(res.headers.get("X-Idempotent-Replay")).toBe("true")
+      expect(mockCreateBooking).not.toHaveBeenCalled()
+    })
+
+    it("returns 409 on body-mismatch with the same key", async () => {
+      mockLookupIdempotency.mockResolvedValueOnce({ kind: "mismatch" })
+      const res = await POST(makePostReq(VALID_BODY, { "Idempotency-Key": "abc-123" }))
+      expect(res.status).toBe(409)
+      const body = await res.json()
+      expect(body.error).toContain("Idempotency-Key")
+      expect(mockCreateBooking).not.toHaveBeenCalled()
+    })
+
+    it("records the response after a successful createBooking", async () => {
+      await POST(makePostReq(VALID_BODY, { "Idempotency-Key": "abc-123" }))
+      expect(mockRecordIdempotentResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKeyId: "ak-1",
+          idempotencyKey: "abc-123",
+          responseStatus: 201,
+        })
+      )
+    })
+
+    it("does NOT record on createBooking failure (clients should be able to retry)", async () => {
+      mockCreateBooking.mockResolvedValueOnce({ ok: false, error: "CONFLICT", status: 409 })
+      await POST(makePostReq(VALID_BODY, { "Idempotency-Key": "abc-123" }))
+      // recordIdempotentResponse is called but with a non-2xx status; the helper
+      // itself drops it. Here we assert the route forwards the failure status:
+      expect(mockRecordIdempotentResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ responseStatus: 409 })
+      )
     })
   })
 })

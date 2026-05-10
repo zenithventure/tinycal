@@ -96,7 +96,7 @@ Per-key rate limit: **60 requests/minute**. Responses include
 
 #### Bookings
 - `GET /api/v1/bookings` — List bookings (supports `?status=`, `?from=`, `?to=` filters)
-- `POST /api/v1/bookings` — Create a booking on one of your event types. Body: `{ eventTypeId, startTime (ISO 8601), bookerName, bookerEmail, bookerTimezone, bookerPhone?, answers? }`. Returns `201` with `{ data: <booking> }` including `meetingUrl`. The event type must belong to the API key's owner (otherwise `403`).
+- `POST /api/v1/bookings` — Create a booking on one of your event types. Body: `{ eventTypeId, startTime (ISO 8601), bookerName, bookerEmail, bookerTimezone, bookerPhone?, answers? }`. Returns `201` with `{ data: <booking> }` including `meetingUrl`. The event type must belong to the API key's owner (otherwise `403`). Pass `Idempotency-Key: <opaque>` (e.g. UUID) to safely retry on network errors — repeats with the same key + body within 24h replay the original response (with `X-Idempotent-Replay: true` header); same key + different body returns `409`.
 
 #### Calendar Connections
 - `PATCH /api/calendar-connections/:id` — Update connection settings (label, checkConflicts, isPrimary)
