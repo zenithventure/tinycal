@@ -92,7 +92,7 @@ export default function PrivacyPolicy() {
         <p>
           Your data is stored in secure, encrypted databases hosted on Neon (PostgreSQL). OAuth tokens
           are stored encrypted. We use HTTPS for all data transmission. The Service is hosted on
-          AWS Amplify / Vercel with industry-standard security measures.
+          Vercel with industry-standard security measures.
         </p>
 
         <h2>6. Data Retention</h2>
