@@ -7,12 +7,24 @@ export async function GET() {
     return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_APP_URL!))
   }
 
+  // Least-privilege scopes: identity (openid/email/profile) plus calendar.events,
+  // which is enough to read conflict events and create/update/delete booking events.
+  // Avoid the broader `auth/calendar` scope — it grants full calendar management
+  // (including deleting calendars) and triggers Google's "unverified app" warning
+  // with a scarier permission prompt than we need.
+  const scope = [
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/calendar.events",
+  ].join(" ")
+
   // Build Google OAuth URL
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`,
     response_type: "code",
-    scope: "openid email profile https://www.googleapis.com/auth/calendar",
+    scope,
     access_type: "offline",
     prompt: "consent",
     state: user.id, // Pass user ID in state
