@@ -11,29 +11,74 @@ interface CoHost {
   email: string | null
 }
 
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+function validateSlug(s: string): string | null {
+  if (s.length === 0) return "Slug can't be empty"
+  if (s.length > 80) return "Slug must be 80 characters or fewer"
+  if (!SLUG_PATTERN.test(s)) {
+    return "Slug must be lowercase letters, digits, and single hyphens (no leading/trailing)"
+  }
+  return null
+}
+
 export default function EditEventTypePage() {
   const params = useParams()
   const router = useRouter()
   const [et, setEt] = useState<any>(null)
+  const [originalSlug, setOriginalSlug] = useState<string>("")
+  const [userSlug, setUserSlug] = useState<string>("")
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const [coHostEmail, setCoHostEmail] = useState("")
   const [coHostError, setCoHostError] = useState<string | null>(null)
   const [coHostAdding, setCoHostAdding] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/event-types/${params.id}`).then(r => r.json()).then(setEt)
+    fetch(`/api/event-types/${params.id}`).then(r => r.json()).then(data => {
+      setEt(data)
+      setOriginalSlug(data.slug ?? "")
+    })
+    fetch("/api/user").then(r => r.json()).then(u => setUserSlug(u?.slug ?? ""))
   }, [params.id])
 
+  const slugError = et?.slug != null ? validateSlug(et.slug) : null
+  const slugChanged = et != null && et.slug !== originalSlug
+
   async function handleSave() {
+    setSaveError(null)
+
+    if (slugError) {
+      setSaveError(slugError)
+      return
+    }
+
+    if (slugChanged) {
+      const ok = confirm(
+        `Changing the slug from "${originalSlug}" to "${et.slug}" will break any existing booking links you've shared. Existing bookings keep working — only future links are affected.\n\nContinue?`
+      )
+      if (!ok) return
+    }
+
     setSaving(true)
-    await fetch(`/api/event-types/${params.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(et),
-    })
-    setSaving(false)
-    router.push("/dashboard/event-types")
+    try {
+      const res = await fetch(`/api/event-types/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(et),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setSaveError(body.error || `Save failed (HTTP ${res.status})`)
+        return
+      }
+      router.push("/dashboard/event-types")
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Network error")
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function addCoHost() {
@@ -83,6 +128,9 @@ export default function EditEventTypePage() {
   const showsEmptyCollectiveWarning =
     et.isCollective && (et.collectiveMembers ?? []).length === 0
 
+  const previewHost = typeof window !== "undefined" ? window.location.host : "tinycal.zenithstudio.app"
+  const slugUrlPreview = userSlug ? `${previewHost}/${userSlug}/${et.slug}` : null
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
@@ -93,12 +141,35 @@ export default function EditEventTypePage() {
       </div>
 
       <div className="bg-white border rounded-xl p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium mb-1">Title</label>
-            <input type="text" value={et.title} onChange={e => setEt({ ...et, title: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+        <div>
+          <label className="block text-sm font-medium mb-1">Title</label>
+          <input type="text" value={et.title} onChange={e => setEt({ ...et, title: e.target.value })}
+            className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Slug</label>
+          <input
+            type="text"
+            value={et.slug ?? ""}
+            onChange={e => setEt({ ...et, slug: e.target.value })}
+            placeholder="discovery-call"
+            className={`w-full border rounded-lg px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500 outline-none ${slugError ? "border-red-300" : ""}`}
+          />
+          <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+            {slugUrlPreview ? <>Booking page: <code className="text-gray-700">{slugUrlPreview}</code></> : "Used in the booking page URL and the API"}
           </div>
+          {slugError && (
+            <div className="text-xs text-red-700 mt-1">{slugError}</div>
+          )}
+          {slugChanged && !slugError && (
+            <div className="text-xs text-amber-700 mt-1">
+              Changing the slug will break any links you&apos;ve already shared.
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium mb-1">Duration (min)</label>
             <select value={et.duration} onChange={e => setEt({ ...et, duration: Number(e.target.value) })}
@@ -263,8 +334,14 @@ export default function EditEventTypePage() {
           <label htmlFor="active" className="text-sm">Active (visible on booking page)</label>
         </div>
 
+        {saveError && (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+            {saveError}
+          </div>
+        )}
+
         <div className="flex justify-end">
-          <button onClick={handleSave} disabled={saving}
+          <button onClick={handleSave} disabled={saving || !!slugError}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
             <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Changes"}
           </button>

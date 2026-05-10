@@ -151,6 +151,75 @@ describe("PATCH /api/event-types/[id]", () => {
     )
     expect(mockUserCount).not.toHaveBeenCalled()
   })
+
+  describe("slug validation", () => {
+    beforeEach(() => {
+      mockEventTypeFindUnique.mockResolvedValue({ userId: OWNER.id })
+    })
+
+    it("accepts a valid slug", async () => {
+      const res = await PATCH(
+        new Request("http://x", { method: "PATCH", body: JSON.stringify({ slug: "discovery-call" }) }),
+        { params: { id: "et-1" } }
+      )
+      expect(res.status).toBe(200)
+      expect(mockEventTypeUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ slug: "discovery-call" }) })
+      )
+    })
+
+    it("rejects empty slug", async () => {
+      const res = await PATCH(
+        new Request("http://x", { method: "PATCH", body: JSON.stringify({ slug: "" }) }),
+        { params: { id: "et-1" } }
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it("rejects slug with uppercase, underscores, or spaces", async () => {
+      for (const bad of ["BadSlug", "bad_slug", "bad slug", "-bad", "bad-", "bad--slug"]) {
+        mockEventTypeFindUnique.mockResolvedValueOnce({ userId: OWNER.id })
+        const res = await PATCH(
+          new Request("http://x", { method: "PATCH", body: JSON.stringify({ slug: bad }) }),
+          { params: { id: "et-1" } }
+        )
+        expect(res.status, `slug=${bad} should fail`).toBe(400)
+      }
+    })
+
+    it("rejects slug over 80 chars", async () => {
+      const res = await PATCH(
+        new Request("http://x", { method: "PATCH", body: JSON.stringify({ slug: "a".repeat(81) }) }),
+        { params: { id: "et-1" } }
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it("returns friendly 409 on Prisma P2002 (duplicate slug)", async () => {
+      const { Prisma } = await import("@prisma/client")
+      mockEventTypeUpdate.mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("Unique constraint violated", {
+          code: "P2002", clientVersion: "5.22.0",
+        })
+      )
+
+      const res = await PATCH(
+        new Request("http://x", { method: "PATCH", body: JSON.stringify({ slug: "discovery-call" }) }),
+        { params: { id: "et-1" } }
+      )
+      expect(res.status).toBe(409)
+      const body = await res.json()
+      expect(body.error).toContain("already have an event type with this slug")
+    })
+
+    it("ignores slug entirely when not provided in body", async () => {
+      const res = await PATCH(
+        new Request("http://x", { method: "PATCH", body: JSON.stringify({ title: "Just a rename" }) }),
+        { params: { id: "et-1" } }
+      )
+      expect(res.status).toBe(200)
+    })
+  })
 })
 
 describe("DELETE /api/event-types/[id]", () => {
