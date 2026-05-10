@@ -1,11 +1,15 @@
 import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
 
+// Routes that handle their own authentication (Bearer / webhook signature /
+// public access). Auth.js middleware must not gate them with a session check —
+// otherwise Bearer-token clients get 401 before the route handler runs.
 const publicRoutes = [
   '/', '/login',
   '/api/webhooks', '/api/availability', '/api/bookings',
   '/api/slots', '/api/stripe/webhook', '/api/auth',
   '/api/meeting-links',
+  '/api/v1',  // REST API — auths via Bearer api key in route handler
 ]
 
 function isPublicRoute(pathname: string): boolean {
