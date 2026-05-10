@@ -30,10 +30,11 @@ async function main() {
       migration_name: string
       started_at: Date
       finished_at: Date | null
+      rolled_back_at: Date | null
       applied_steps_count: number
       logs: string | null
     }> = await prisma.$queryRawUnsafe(
-      `SELECT migration_name, started_at, finished_at, applied_steps_count, logs
+      `SELECT migration_name, started_at, finished_at, rolled_back_at, applied_steps_count, logs
        FROM _prisma_migrations
        WHERE migration_name = '20260408000000_add_availability_schedules'`
     )
@@ -49,11 +50,18 @@ async function main() {
       console.log("  (no row found — migration was never recorded as started)")
     } else {
       const r = migrationRow[0]
+      const state = r.rolled_back_at
+        ? "ROLLED BACK (will be re-applied on next migrate deploy)"
+        : r.finished_at
+          ? "APPLIED"
+          : "PARTIAL (blocking)"
       console.log("  migration_name:        " + r.migration_name)
       console.log("  started_at:            " + r.started_at?.toISOString())
-      console.log("  finished_at:           " + (r.finished_at?.toISOString() ?? "NULL (partial)"))
+      console.log("  finished_at:           " + (r.finished_at?.toISOString() ?? "NULL"))
+      console.log("  rolled_back_at:        " + (r.rolled_back_at?.toISOString() ?? "NULL"))
       console.log("  applied_steps_count:   " + r.applied_steps_count)
-      if (r.logs) console.log("  logs:\n" + r.logs.split("\n").map(l => "    " + l).join("\n"))
+      console.log("  state:                 " + state)
+      if (r.logs && !r.rolled_back_at) console.log("  logs:\n" + r.logs.split("\n").map(l => "    " + l).join("\n"))
     }
   } finally {
     await prisma.$disconnect()
