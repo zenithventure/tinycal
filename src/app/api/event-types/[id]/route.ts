@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server"
+import { Prisma } from "@prisma/client"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+
+// URL-safe slug. Lowercase letters, digits, hyphens. No leading/trailing
+// hyphen. 1–80 chars. Mirrors what the public booking-page route can resolve.
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const MAX_SLUG_LENGTH = 80
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const user = await getAuthenticatedUser()
@@ -58,29 +64,57 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
-  const eventType = await prisma.eventType.update({
-    where: { id: params.id },
-    data: {
-      title: body.title,
-      description: body.description,
-      duration: body.duration,
-      location: body.location,
-      customLocation: body.customLocation,
-      color: body.color,
-      active: body.active,
-      bufferBefore: body.bufferBefore,
-      bufferAfter: body.bufferAfter,
-      dailyLimit: body.dailyLimit,
-      weeklyLimit: body.weeklyLimit,
-      minNotice: body.minNotice,
-      maxFutureDays: body.maxFutureDays,
-      requirePayment: body.requirePayment,
-      price: body.price,
-      isCollective: body.isCollective,
-      collectiveMembers: body.collectiveMembers,
-    },
-  })
-  return NextResponse.json(eventType)
+  if (typeof body.slug === "string") {
+    if (body.slug.length === 0 || body.slug.length > MAX_SLUG_LENGTH) {
+      return NextResponse.json(
+        { error: `slug must be 1–${MAX_SLUG_LENGTH} characters` },
+        { status: 400 }
+      )
+    }
+    if (!SLUG_PATTERN.test(body.slug)) {
+      return NextResponse.json(
+        { error: "slug must contain only lowercase letters, digits, and single hyphens (no leading/trailing hyphens)" },
+        { status: 400 }
+      )
+    }
+  }
+
+  try {
+    const eventType = await prisma.eventType.update({
+      where: { id: params.id },
+      data: {
+        title: body.title,
+        slug: body.slug,
+        description: body.description,
+        duration: body.duration,
+        location: body.location,
+        customLocation: body.customLocation,
+        color: body.color,
+        active: body.active,
+        bufferBefore: body.bufferBefore,
+        bufferAfter: body.bufferAfter,
+        dailyLimit: body.dailyLimit,
+        weeklyLimit: body.weeklyLimit,
+        minNotice: body.minNotice,
+        maxFutureDays: body.maxFutureDays,
+        requirePayment: body.requirePayment,
+        price: body.price,
+        isCollective: body.isCollective,
+        collectiveMembers: body.collectiveMembers,
+      },
+    })
+    return NextResponse.json(eventType)
+  } catch (e) {
+    // Unique constraint on @@unique([userId, slug]) — surface a friendly error
+    // instead of leaking the Prisma error shape.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        { error: "You already have an event type with this slug — pick a different one" },
+        { status: 409 }
+      )
+    }
+    throw e
+  }
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
