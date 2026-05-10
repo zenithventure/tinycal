@@ -51,7 +51,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "Calendar connection not found" }, { status: 404 })
   }
   if (connection.userId !== userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const body = await req.json()
@@ -125,7 +125,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: "Calendar connection not found" }, { status: 404 })
   }
   if (connection.userId !== userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   // Cannot disconnect the last calendar
