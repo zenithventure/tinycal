@@ -97,7 +97,7 @@ export default function AvailabilityPage() {
     }).then((r) => r.json())
     setNewName("")
     setCreating(false)
-    const data = await loadSchedules()
+    await loadSchedules()
     selectSchedule(schedule.id)
   }
 
