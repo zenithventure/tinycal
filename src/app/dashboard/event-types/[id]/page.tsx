@@ -2,14 +2,24 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, Save } from "lucide-react"
+import { ArrowLeft, Save, X, AlertCircle } from "lucide-react"
 import Link from "next/link"
+
+interface CoHost {
+  id: string
+  name: string | null
+  email: string | null
+}
 
 export default function EditEventTypePage() {
   const params = useParams()
   const router = useRouter()
   const [et, setEt] = useState<any>(null)
   const [saving, setSaving] = useState(false)
+
+  const [coHostEmail, setCoHostEmail] = useState("")
+  const [coHostError, setCoHostError] = useState<string | null>(null)
+  const [coHostAdding, setCoHostAdding] = useState(false)
 
   useEffect(() => {
     fetch(`/api/event-types/${params.id}`).then(r => r.json()).then(setEt)
@@ -26,7 +36,52 @@ export default function EditEventTypePage() {
     router.push("/dashboard/event-types")
   }
 
+  async function addCoHost() {
+    const email = coHostEmail.trim().toLowerCase()
+    if (!email) return
+    setCoHostError(null)
+
+    if (email === et.user?.email) {
+      setCoHostError("That's the event-type owner — already a host by default")
+      return
+    }
+    if ((et.collectiveHosts ?? []).some((h: CoHost) => h.email === email)) {
+      setCoHostError("Already added")
+      return
+    }
+
+    setCoHostAdding(true)
+    try {
+      const res = await fetch(`/api/users/lookup?email=${encodeURIComponent(email)}`)
+      const body = await res.json()
+      if (!res.ok) {
+        setCoHostError(body.error || "Lookup failed")
+        return
+      }
+      const newHost: CoHost = body.data
+      setEt({
+        ...et,
+        collectiveMembers: [...(et.collectiveMembers ?? []), newHost.id],
+        collectiveHosts: [...(et.collectiveHosts ?? []), newHost],
+      })
+      setCoHostEmail("")
+    } finally {
+      setCoHostAdding(false)
+    }
+  }
+
+  function removeCoHost(id: string) {
+    setEt({
+      ...et,
+      collectiveMembers: (et.collectiveMembers ?? []).filter((x: string) => x !== id),
+      collectiveHosts: (et.collectiveHosts ?? []).filter((h: CoHost) => h.id !== id),
+    })
+  }
+
   if (!et) return <div className="animate-pulse">Loading...</div>
+
+  const showsEmptyCollectiveWarning =
+    et.isCollective && (et.collectiveMembers ?? []).length === 0
 
   return (
     <div>
@@ -142,6 +197,65 @@ export default function EditEventTypePage() {
             className="rounded" id="isCollective" />
           <label htmlFor="isCollective" className="text-sm">Collective scheduling (find time for multiple hosts)</label>
         </div>
+
+        {et.isCollective && (
+          <div className="border rounded-lg p-4 space-y-3 bg-gray-50">
+            <div>
+              <h4 className="font-medium text-sm">Co-hosts</h4>
+              <p className="text-xs text-gray-600 mt-1">
+                Add other TinyCal users whose availability and connected calendars must also be free for a slot to be bookable.
+              </p>
+            </div>
+
+            {(et.collectiveHosts ?? []).length > 0 && (
+              <ul className="space-y-2">
+                {(et.collectiveHosts as CoHost[]).map(h => (
+                  <li key={h.id} className="flex items-center justify-between bg-white border rounded-lg px-3 py-2">
+                    <div>
+                      <div className="text-sm font-medium">{h.name || "(no name)"}</div>
+                      <div className="text-xs text-gray-600">{h.email}</div>
+                    </div>
+                    <button type="button" onClick={() => removeCoHost(h.id)}
+                      aria-label={`Remove ${h.email}`}
+                      className="p-1 hover:bg-gray-100 rounded">
+                      <X className="w-4 h-4 text-gray-600" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {showsEmptyCollectiveWarning && (
+              <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>
+                  Collective scheduling is on but no co-hosts are added —
+                  bookings will only check your availability.
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={e => { e.preventDefault(); addCoHost() }} className="flex gap-2">
+              <input
+                type="email"
+                value={coHostEmail}
+                onChange={e => { setCoHostEmail(e.target.value); setCoHostError(null) }}
+                placeholder="co-host@example.com"
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <button type="submit" disabled={coHostAdding || !coHostEmail.trim()}
+                className="bg-gray-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50">
+                {coHostAdding ? "Adding..." : "Add"}
+              </button>
+            </form>
+
+            {coHostError && (
+              <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+                {coHostError}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           <input type="checkbox" checked={et.active} onChange={e => setEt({ ...et, active: e.target.checked })}
