@@ -34,6 +34,21 @@ export async function DELETE(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await req.json()
+  if (!id || typeof id !== "string") {
+    return NextResponse.json({ error: "id is required" }, { status: 400 })
+  }
+
+  // Ownership check — without this, any authed user could delete any other
+  // user's webhook by guessing the cuid (#55).
+  const existing = await prisma.webhook.findUnique({
+    where: { id },
+    select: { userId: true },
+  })
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (existing.userId !== user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   await prisma.webhook.delete({ where: { id } })
   return NextResponse.json({ success: true })
 }
