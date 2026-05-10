@@ -36,9 +36,25 @@ TinyCal sent the webhook (not the booking time).
 
 ### Retries
 
-Currently **none** — a delivery is attempted exactly once. Failed deliveries
-are logged on the server but not retried. Build receivers to be tolerant of
-duplicate or missed events; ack with a 2xx as soon as you've enqueued the work.
+**At-least-once delivery** with up to 3 attempts. A delivery is treated as
+failed if `fetch` throws (timeout / connection refused / DNS failure) or if
+the response status is not 2xx.
+
+| Attempt | Trigger                  |
+|---------|--------------------------|
+| 1       | Inline, immediately      |
+| 2       | 30 seconds after attempt 1 fails |
+| 3       | 5 minutes after attempt 2 fails  |
+
+After all 3 attempts fail, the delivery is marked permanently failed and the
+webhook row in **Dashboard → Webhooks** shows a "N failed deliveries in last
+24h" counter.
+
+**Receivers should be idempotent.** Because retries can fan out duplicate
+events (e.g., your service ack'd with 200 but the network dropped the
+response, then we retry), dedupe on the booking `uid` field. Ack with a 2xx
+as soon as you've enqueued the work — don't block the webhook on downstream
+processing.
 
 ## Verifying signatures
 

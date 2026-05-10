@@ -242,8 +242,39 @@ model Webhook {
   secret    String
   active    Boolean  @default(true)
 
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime          @default(now())
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+}
+
+// One row per fanout attempt-set. Persisted so retries survive function cold
+// starts and so we can show delivery history on the dashboard. Status flows:
+// PENDING → SUCCEEDED, or PENDING → PENDING (with nextAttemptAt) → FAILED
+// after the third attempt also fails.
+model WebhookDelivery {
+  id            String         @id @default(cuid())
+  webhookId     String
+  event         String
+  payload       Json
+  signature     String
+  attempt       Int            @default(1)
+  status        DeliveryStatus @default(PENDING)
+  responseCode  Int?
+  errorMessage  String?
+  nextAttemptAt DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([webhookId, status, createdAt])
+}
+
+enum DeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
 }
 
 // ─── Contacts ───
