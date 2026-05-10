@@ -76,14 +76,27 @@ See `.env.example` for all required variables. Key variables:
 
 ### REST API (v1)
 
-All API requests require `Authorization: Bearer <user-id>` header.
+All API requests require `Authorization: Bearer <api-key>` header.
+
+API keys are minted in **Settings → API Keys** (or, until that ships, via
+`npx tsx scripts/create-api-key.ts <userIdOrEmail> "<name>"`). Keys have the
+form `tc_live_<prefix>_<secret>` and are only shown once at creation.
+
+Per-key rate limit: **60 requests/minute**. Responses include
+`X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`
+(epoch seconds) headers; `429` responses include `Retry-After` (seconds).
+
+> **Deprecated:** passing your raw `User.id` as the Bearer token still works
+> but returns a `Warning: 299 - "tc-legacy-api-key"` header. This path will
+> be removed in a future release — migrate to a real API key.
 
 #### Event Types
-- `GET /api/v1/event-types` — List all event types
+- `GET /api/v1/event-types` — List all event types (supports `?slug=<slug>` filter)
 - `POST /api/v1/event-types` — Create event type
 
 #### Bookings
 - `GET /api/v1/bookings` — List bookings (supports `?status=`, `?from=`, `?to=` filters)
+- `POST /api/v1/bookings` — Create a booking on one of your event types. Body: `{ eventTypeId, startTime (ISO 8601), bookerName, bookerEmail, bookerTimezone, bookerPhone?, answers? }`. Returns `201` with `{ data: <booking> }` including `meetingUrl`. The event type must belong to the API key's owner (otherwise `403`).
 
 #### Calendar Connections
 - `PATCH /api/calendar-connections/:id` — Update connection settings (label, checkConflicts, isPrimary)
@@ -98,7 +111,9 @@ Configure webhooks in the dashboard. Events:
 - `booking.cancelled`
 - `booking.rescheduled`
 
-Webhook payloads include `X-Webhook-Signature` header (HMAC-SHA256).
+Webhook payloads include `X-Webhook-Signature` header (HMAC-SHA256, bare hex).
+See [docs/webhooks.md](docs/webhooks.md) for the payload schema and signature
+verification examples.
 
 ## Deployment
 
