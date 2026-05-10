@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test"
 
-const BASE_URL = process.env.BASE_URL || "https://main.d3qg4jj8hqacaa.amplifyapp.com"
+// Default to local dev server. Set BASE_URL when running against a Vercel
+// preview deployment (e.g., BASE_URL=https://tinycal-pr-NN-zenithventure.vercel.app)
+const BASE_URL = process.env.BASE_URL || "http://localhost:3000"
 
 export default defineConfig({
   testDir: "./e2e",

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { addDays, format, nextMonday } from "date-fns"
 
-const BASE = process.env.BASE_URL || "https://main.d3qg4jj8hqacaa.amplifyapp.com"
+const BASE = process.env.BASE_URL || "http://localhost:3000"
 const USER_SLUG = process.env.TEST_USER_SLUG || "szewong"
 
 // ─── Shareable Meeting Links: API Flow ───
