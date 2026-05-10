@@ -21,9 +21,9 @@ async function main() {
   const prisma = new PrismaClient()
   try {
     // Safety check — refuse to drop a table that has rows
-    const rowCount: Array<{ count: bigint }> = await prisma.$queryRawUnsafe(
+    const rowCount = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
       `SELECT COUNT(*)::bigint AS count FROM "AvailabilitySchedule"`
-    ).catch(() => [{ count: BigInt(-1) }])
+    ).catch(() => [{ count: BigInt(-1) }] as Array<{ count: bigint }>)
 
     if (rowCount[0].count === BigInt(-1)) {
       console.log("AvailabilitySchedule does not exist — nothing to drop. Proceeding to mark rolled-back.")

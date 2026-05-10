@@ -10,7 +10,27 @@ export async function GET() {
   const webhooks = await prisma.webhook.findMany({
     where: { userId: user.id },
   })
-  return NextResponse.json(webhooks)
+
+  // Surface a 24h failure counter per webhook so the dashboard can flag
+  // delivery problems without a follow-up request.
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const failureCounts = await prisma.webhookDelivery.groupBy({
+    by: ["webhookId"],
+    where: {
+      webhookId: { in: webhooks.map(w => w.id) },
+      status: "FAILED",
+      createdAt: { gte: since },
+    },
+    _count: { _all: true },
+  })
+  const countByWebhook = new Map(failureCounts.map(c => [c.webhookId, c._count._all]))
+
+  return NextResponse.json(
+    webhooks.map(w => ({
+      ...w,
+      failedDeliveryCount24h: countByWebhook.get(w.id) ?? 0,
+    }))
+  )
 }
 
 export async function POST(req: Request) {

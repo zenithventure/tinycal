@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Trash2, Copy } from "lucide-react"
+import { Plus, Trash2, Copy, AlertTriangle } from "lucide-react"
 
 export default function WebhooksPage() {
   const [webhooks, setWebhooks] = useState<any[]>([])
@@ -67,6 +67,12 @@ export default function WebhooksPage() {
                   <Copy className="w-3 h-3" />
                 </button>
               </div>
+              {wh.failedDeliveryCount24h > 0 && (
+                <div className="flex items-center gap-1 mt-1 text-xs text-amber-700">
+                  <AlertTriangle className="w-3 h-3" />
+                  {wh.failedDeliveryCount24h} failed {wh.failedDeliveryCount24h === 1 ? "delivery" : "deliveries"} in last 24h
+                </div>
+              )}
             </div>
             <button onClick={() => handleDelete(wh.id)} className="p-2 hover:bg-red-50 rounded-lg">
               <Trash2 className="w-4 h-4 text-red-500" />
