@@ -58,9 +58,24 @@ const baseEventType = {
   availabilityScheduleId: null as string | null,
 }
 
-// Use a future Monday to guarantee dayOfWeek=1
-const futureMonday = new Date("2026-05-04T00:00:00Z")
-const futureTuesday = new Date("2026-05-05T00:00:00Z")
+// Use the next future Monday to guarantee dayOfWeek=1 without going stale.
+function nextFutureMonday() {
+  const today = new Date()
+  const daysUntilMonday = (8 - today.getUTCDay()) % 7 || 7
+  const monday = new Date(Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate() + daysUntilMonday,
+    0,
+    0,
+    0,
+    0
+  ))
+  return monday
+}
+
+const futureMonday = nextFutureMonday()
+const futureTuesday = new Date(futureMonday.getTime() + 24 * 60 * 60 * 1000)
 
 const defaultOptions = {
   userId: USER_ID,
