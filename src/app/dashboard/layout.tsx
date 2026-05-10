@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Calendar, Clock, Settings, Webhook, LayoutDashboard, LogOut, Users, Menu, X, LifeBuoy, Link2 } from "lucide-react"
+import { Calendar, Clock, Settings, Webhook, LayoutDashboard, LogOut, Users, Menu, X, LifeBuoy, Link2, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/contexts/auth-context"
 
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/dashboard/availability", label: "Availability", icon: Clock },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/webhooks", label: "Webhooks", icon: Webhook },
+  { href: "/dashboard/api-keys", label: "API Keys", icon: KeyRound },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/dashboard/support", label: "Support", icon: LifeBuoy },
 ]
