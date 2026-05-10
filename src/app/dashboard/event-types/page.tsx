@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import { Plus, Copy, ExternalLink, Trash2, Calendar, Search, X } from "lucide-react"
+import { Plus, Copy, Pencil, Trash2, Calendar, Search, X } from "lucide-react"
 import { formatDuration } from "@/lib/utils"
 
 function useDebounce(value: string, delay: number) {
@@ -178,23 +178,32 @@ export default function EventTypesPage() {
           </div>
         ) : filteredEventTypes.map((et) => (
           <div key={et.id} className="bg-white border rounded-xl p-5 flex items-center justify-between hover:shadow-sm transition">
-            <div className="flex items-center gap-4">
-              <div className="w-2 h-12 rounded-full" style={{ backgroundColor: et.color }} />
-              <div>
-                <h3 className="font-semibold">{et.title}</h3>
-                <p className="text-sm text-gray-500">
+            <Link
+              href={`/dashboard/event-types/${et.id}`}
+              className="flex items-center gap-4 flex-1 min-w-0 -m-5 p-5 rounded-l-xl hover:bg-gray-50 transition"
+            >
+              <div className="w-2 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: et.color }} />
+              <div className="min-w-0">
+                <h3 className="font-semibold truncate">{et.title}</h3>
+                <p className="text-sm text-gray-500 truncate">
                   {formatDuration(et.duration)} · {et.location.replace("_", " ")} · {et._count?.bookings || 0} bookings
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => copyLink(et.slug, user?.slug || "")} className="p-2 hover:bg-gray-100 rounded-lg" title="Copy link">
+            </Link>
+            <div className="flex items-center gap-2 ml-3">
+              <button onClick={() => copyLink(et.slug, user?.slug || "")}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+                title="Copy booking page link" aria-label="Copy booking page link">
                 <Copy className="w-4 h-4 text-gray-500" />
               </button>
-              <Link href={`/dashboard/event-types/${et.id}`} className="p-2 hover:bg-gray-100 rounded-lg" title="Edit">
-                <ExternalLink className="w-4 h-4 text-gray-500" />
+              <Link href={`/dashboard/event-types/${et.id}`}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+                title="Edit" aria-label="Edit event type">
+                <Pencil className="w-4 h-4 text-gray-500" />
               </Link>
-              <button onClick={() => handleDelete(et.id)} className="p-2 hover:bg-gray-100 rounded-lg" title="Delete">
+              <button onClick={() => handleDelete(et.id)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+                title="Delete" aria-label="Delete event type">
                 <Trash2 className="w-4 h-4 text-red-500" />
               </button>
             </div>
