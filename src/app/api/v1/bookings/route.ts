@@ -3,6 +3,7 @@ import { z } from "zod"
 import prisma from "@/lib/prisma"
 import { authenticateApiKey, isAuthFailure, applyAuthResponseHeaders } from "@/lib/api-keys/auth"
 import { createBooking } from "@/lib/bookings/create"
+import { hashRequestBody, lookupIdempotency, recordIdempotentResponse } from "@/lib/api-keys/idempotency"
 
 export async function GET(req: Request) {
   const auth = await authenticateApiKey(req)
@@ -56,25 +57,61 @@ export async function POST(req: Request) {
     )
   }
 
+  // ── Idempotency ──
+  // Bot retry safety: if the same Idempotency-Key arrives twice with the same
+  // body within 24h, return the cached response instead of re-executing.
+  const idempotencyKey = req.headers.get("Idempotency-Key")?.trim() || null
+  const requestHash = idempotencyKey ? hashRequestBody(parsed.data) : null
+
+  if (idempotencyKey && requestHash && auth.apiKeyId) {
+    const lookup = await lookupIdempotency(auth.apiKeyId, idempotencyKey, requestHash)
+    if (lookup.kind === "replay") {
+      return applyAuthResponseHeaders(lookup.response, auth)
+    }
+    if (lookup.kind === "mismatch") {
+      return applyAuthResponseHeaders(
+        NextResponse.json(
+          { error: "Idempotency-Key was previously used with a different request body" },
+          { status: 409 }
+        ),
+        auth
+      )
+    }
+    // miss → fall through and execute
+  }
+
   const result = await createBooking({
     ...parsed.data,
     requireOwnerUserId: auth.user.id,
   })
 
+  let responseStatus: number
+  let responseBody: Record<string, unknown>
   if (!result.ok) {
     const messages: Record<typeof result.error, string> = {
       EVENT_TYPE_NOT_FOUND: "Event type not found",
       FORBIDDEN: "Event type does not belong to this API key's owner",
       CONFLICT: "Time slot no longer available",
     }
-    return applyAuthResponseHeaders(
-      NextResponse.json({ error: messages[result.error] }, { status: result.status }),
-      auth
-    )
+    responseStatus = result.status
+    responseBody = { error: messages[result.error] }
+  } else {
+    responseStatus = 201
+    responseBody = { data: result.booking }
+  }
+
+  if (idempotencyKey && requestHash && auth.apiKeyId) {
+    await recordIdempotentResponse({
+      apiKeyId: auth.apiKeyId,
+      idempotencyKey,
+      requestHash,
+      responseStatus,
+      responseBody,
+    })
   }
 
   return applyAuthResponseHeaders(
-    NextResponse.json({ data: result.booking }, { status: 201 }),
+    NextResponse.json(responseBody, { status: responseStatus }),
     auth
   )
 }
