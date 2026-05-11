@@ -1,5 +1,5 @@
-import { addMinutes, eachDayOfInterval, format, isAfter, isBefore, setHours, setMinutes, startOfDay } from "date-fns"
-import { toZonedTime, fromZonedTime } from "date-fns-tz"
+import { addMinutes, isAfter, isBefore } from "date-fns"
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import prisma from "./prisma"
 import { getConflictingEvents } from "./calendar/conflict-detection"
 
@@ -54,6 +54,8 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
     ...existingBookings.map((b) => ({ start: b.startTime, end: b.endTime })),
   ]
 
+  const tz = user.timezone
+
   // Check daily/weekly limits
   const dailyBookingCounts = new Map<string, number>()
   if (eventType.dailyLimit || eventType.weeklyLimit) {
@@ -67,61 +69,53 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
       },
     })
     for (const b of allBookings) {
-      const dayKey = format(b.startTime, "yyyy-MM-dd")
+      const dayKey = formatInTimeZone(b.startTime, tz, "yyyy-MM-dd")
       dailyBookingCounts.set(dayKey, (dailyBookingCounts.get(dayKey) || 0) + 1)
     }
   }
 
-  // Generate slots for each day
-  const days = eachDayOfInterval({ start: startDate, end: endDate })
+  // Walk every calendar day in the host's timezone that overlaps [startDate, endDate].
+  // Iterating UTC days here (the previous implementation) misaligned the day-of-week
+  // lookup with the timezone-anchored slot times — Tuesday rules ended up anchored
+  // on Monday in NY, leaking phantom evening slots onto the next day's view.
+  const startDayStr = formatInTimeZone(startDate, tz, "yyyy-MM-dd")
+  const endDayStr = formatInTimeZone(new Date(endDate.getTime() - 1), tz, "yyyy-MM-dd")
+
   const slots: TimeSlot[] = []
 
-  for (const day of days) {
-    const dayOfWeek = day.getDay()
-    const dateStr = format(day, "yyyy-MM-dd")
+  for (let cursor = startDayStr; cursor <= endDayStr; cursor = nextDay(cursor)) {
+    const [y, mo, d] = cursor.split("-").map(Number)
+    const dayOfWeek = new Date(Date.UTC(y, mo - 1, d)).getUTCDay()
 
-    // Check daily limit
-    if (eventType.dailyLimit && (dailyBookingCounts.get(dateStr) || 0) >= eventType.dailyLimit) {
+    if (eventType.dailyLimit && (dailyBookingCounts.get(cursor) || 0) >= eventType.dailyLimit) {
       continue
     }
 
-    // Find applicable rules (date-specific override or day-of-week)
     const dateOverride = availabilityRules.find(
-      (r) => r.date && format(r.date, "yyyy-MM-dd") === dateStr
+      (r) => r.date && formatInTimeZone(r.date, tz, "yyyy-MM-dd") === cursor
     )
     const dayRules = dateOverride
       ? [dateOverride]
       : availabilityRules.filter((r) => r.dayOfWeek === dayOfWeek && !r.date)
 
     for (const rule of dayRules) {
-      const [startH, startM] = rule.startTime.split(":").map(Number)
-      const [endH, endM] = rule.endTime.split(":").map(Number)
+      const windowStart = fromZonedTime(`${cursor}T${rule.startTime}:00`, tz)
+      const windowEnd = fromZonedTime(`${cursor}T${rule.endTime}:00`, tz)
 
-      // Create times in user's timezone, then convert to UTC
-      const dayInUserTz = toZonedTime(day, user.timezone)
-      const windowStart = fromZonedTime(
-        setMinutes(setHours(startOfDay(dayInUserTz), startH), startM),
-        user.timezone
-      )
-      const windowEnd = fromZonedTime(
-        setMinutes(setHours(startOfDay(dayInUserTz), endH), endM),
-        user.timezone
-      )
-
-      // Generate slots within window
       let slotStart = windowStart
       while (addMinutes(slotStart, duration) <= windowEnd) {
         const slotEnd = addMinutes(slotStart, duration)
         const blockStart = addMinutes(slotStart, -bufferBefore)
         const blockEnd = addMinutes(slotEnd, bufferAfter)
 
-        // Check: not in past, not too soon
-        if (isAfter(slotStart, earliestBooking)) {
-          // Check: no conflicts
+        if (
+          isAfter(slotStart, earliestBooking) &&
+          slotStart >= startDate &&
+          slotStart < endDate
+        ) {
           const hasConflict = busySlots.some(
             (busy) => isBefore(blockStart, busy.end) && isAfter(blockEnd, busy.start)
           )
-
           if (!hasConflict) {
             slots.push({ start: slotStart, end: slotEnd })
           }
@@ -132,7 +126,14 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
     }
   }
 
+  slots.sort((a, b) => a.start.getTime() - b.start.getTime())
   return slots
+}
+
+function nextDay(yyyyMmDd: string): string {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number)
+  const next = new Date(Date.UTC(y, m - 1, d + 1))
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`
 }
 
 export async function initDefaultAvailability(userId: string) {
