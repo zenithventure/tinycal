@@ -380,6 +380,16 @@ export default function SettingsPage() {
           {/* Connect buttons */}
           {!limitReached && (
             <div className="space-y-2 mt-4">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Google may show an &ldquo;app hasn&rsquo;t been verified&rdquo;
+                screen while TinyCal&rsquo;s OAuth app is being verified by
+                Google. You can safely continue via{" "}
+                <span className="font-medium">Advanced &rarr; Go to TinyCal</span>.
+                TinyCal only requests calendar event access &mdash; used to
+                check your availability and create the events you accept as
+                bookings. We don&rsquo;t read or modify other calendar
+                settings.
+              </p>
               <button
                 onClick={connectGoogle}
                 className="w-full border-2 border-dashed rounded-lg p-3 text-sm text-gray-600 hover:bg-gray-50 transition"
