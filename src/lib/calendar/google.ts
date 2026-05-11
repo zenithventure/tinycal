@@ -10,8 +10,12 @@ export function getGoogleOAuth2Client() {
 }
 
 export async function getGoogleCalendarClient(userId: string) {
+  // Prefer the connection the user marked as Primary so events land on the
+  // host's intended calendar. Non-primary Google calendars stay connected
+  // for conflict checking only (see conflict-detection.ts).
   const connection = await prisma.calendarConnection.findFirst({
     where: { userId, provider: "GOOGLE" },
+    orderBy: { isPrimary: "desc" },
   })
   if (!connection) return null
 
@@ -105,6 +109,39 @@ export async function createGoogleCalendarEvent(
   } catch (error) {
     console.error("Google Calendar create event error:", error)
     return null
+  }
+}
+
+export type GoogleEventLookup =
+  | { status: "ok"; start: Date; end: Date }
+  | { status: "cancelled" }
+  | { status: "not_found" }
+  | { status: "error"; reason: string }
+
+// Read a single event by id. Used by the reconcile cron to detect when the
+// host moved or deleted the event directly in Google Calendar. Returns the
+// event status alongside its time window so callers can diff and decide.
+export async function getGoogleCalendarEvent(
+  userId: string,
+  eventId: string
+): Promise<GoogleEventLookup> {
+  const calendar = await getGoogleCalendarClient(userId)
+  if (!calendar) return { status: "error", reason: "no_google_client" }
+
+  try {
+    const res = await calendar.events.get({ calendarId: "primary", eventId })
+    const ev = res.data
+    if (ev.status === "cancelled") return { status: "cancelled" }
+    const startStr = ev.start?.dateTime
+    const endStr = ev.end?.dateTime
+    if (!startStr || !endStr) {
+      return { status: "error", reason: "missing_dateTime" }
+    }
+    return { status: "ok", start: new Date(startStr), end: new Date(endStr) }
+  } catch (err: unknown) {
+    const code = (err as { code?: number; status?: number })?.code ?? (err as { code?: number; status?: number })?.status
+    if (code === 404 || code === 410) return { status: "not_found" }
+    return { status: "error", reason: err instanceof Error ? err.message : String(err) }
   }
 }
 
