@@ -10,8 +10,12 @@ export function getGoogleOAuth2Client() {
 }
 
 export async function getGoogleCalendarClient(userId: string) {
+  // Prefer the connection the user marked as Primary so events land on the
+  // host's intended calendar. Non-primary Google calendars stay connected
+  // for conflict checking only (see conflict-detection.ts).
   const connection = await prisma.calendarConnection.findFirst({
     where: { userId, provider: "GOOGLE" },
+    orderBy: { isPrimary: "desc" },
   })
   if (!connection) return null
 
