@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAvailableSlots } from "@/lib/availability"
 import prisma from "@/lib/prisma"
 import { addDays } from "date-fns"
+import { fromZonedTime } from "date-fns-tz"
 
 // Public endpoint — get available slots for a booking page
 export async function GET(req: Request) {
@@ -22,7 +23,10 @@ export async function GET(req: Request) {
   let endDate: Date
 
   if (dateStr) {
-    startDate = new Date(dateStr)
+    // Interpret dateStr (YYYY-MM-DD) as the booker's local day, not UTC midnight.
+    // Without this, a NY booker selecting May 12 produced a window of
+    // May 11 20:00 EDT → May 12 20:00 EDT, leaking the prior day's slots in.
+    startDate = fromZonedTime(`${dateStr}T00:00:00`, timezone)
     endDate = addDays(startDate, 1)
   } else if (month) {
     const [y, m] = month.split("-").map(Number)
