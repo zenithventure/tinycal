@@ -79,6 +79,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  if (body.availabilityScheduleId) {
+    const schedule = await prisma.availabilitySchedule.findFirst({
+      where: { id: body.availabilityScheduleId, userId: user.id },
+      select: { id: true },
+    })
+    if (!schedule) {
+      return NextResponse.json(
+        { error: "Availability schedule not found" },
+        { status: 404 }
+      )
+    }
+  }
+
   try {
     const eventType = await prisma.eventType.update({
       where: { id: params.id },
@@ -101,7 +114,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         price: body.price,
         isCollective: body.isCollective,
         collectiveMembers: body.collectiveMembers,
+        availabilityScheduleId: body.availabilityScheduleId,
       },
+      include: { questions: { orderBy: { order: "asc" } } },
     })
     return NextResponse.json(eventType)
   } catch (e) {
