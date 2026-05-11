@@ -44,7 +44,7 @@ const TEST_RULES = [
 // ─── Mocks ───
 
 const mockGetAuthenticatedUser = vi.fn()
-const mockPrisma = {
+const mockPrisma: any = {
   availabilitySchedule: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
@@ -64,6 +64,10 @@ const mockPrisma = {
   user: {
     update: vi.fn(),
   },
+  // Routes wrap multi-step writes in a single transaction. The interactive
+  // form `prisma.$transaction(async tx => …)` is what we mock; tx mirrors the
+  // top-level client so the callbacks compose without rewriting them per test.
+  $transaction: vi.fn((fn: any) => (typeof fn === "function" ? fn(mockPrisma) : Promise.all(fn))),
 }
 
 vi.mock("@/lib/auth", () => ({

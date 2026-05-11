@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { validateRules } from "@/lib/availability-validation"
 
 export async function GET() {
   const user = await getAuthenticatedUser()
@@ -26,53 +27,47 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Schedule name is required" }, { status: 400 })
     }
 
-    // Validate rules if provided
-    if (rules && Array.isArray(rules)) {
-      for (const rule of rules) {
-        if (!rule.startTime || !rule.endTime) {
-          return NextResponse.json(
-            { error: "Each rule must have startTime and endTime" },
-            { status: 400 }
-          )
-        }
+    if (rules !== undefined) {
+      const err = validateRules(rules)
+      if (err) return NextResponse.json({ error: err }, { status: 400 })
+    }
+
+    // The unset-default → create → update-pointer trio is wrapped in a
+    // transaction so a partial failure can't leave the user with no default.
+    const schedule = await prisma.$transaction(async (tx) => {
+      if (isDefault) {
+        await tx.availabilitySchedule.updateMany({
+          where: { userId: user.id, isDefault: true },
+          data: { isDefault: false },
+        })
       }
-    }
-
-    // If setting as default, unset any previous default
-    if (isDefault) {
-      await prisma.availabilitySchedule.updateMany({
-        where: { userId: user.id, isDefault: true },
-        data: { isDefault: false },
+      const created = await tx.availabilitySchedule.create({
+        data: {
+          userId: user.id,
+          name: name.trim(),
+          isDefault: isDefault || false,
+          rules: rules?.length
+            ? {
+                create: rules.map((r: any) => ({
+                  dayOfWeek: r.dayOfWeek,
+                  date: r.date ? new Date(r.date) : null,
+                  startTime: r.startTime,
+                  endTime: r.endTime,
+                  enabled: r.enabled ?? true,
+                })),
+              }
+            : undefined,
+        },
+        include: { rules: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
       })
-    }
-
-    const schedule = await prisma.availabilitySchedule.create({
-      data: {
-        userId: user.id,
-        name: name.trim(),
-        isDefault: isDefault || false,
-        rules: rules?.length
-          ? {
-              create: rules.map((r: any) => ({
-                dayOfWeek: r.dayOfWeek,
-                date: r.date ? new Date(r.date) : null,
-                startTime: r.startTime,
-                endTime: r.endTime,
-                enabled: r.enabled ?? true,
-              })),
-            }
-          : undefined,
-      },
-      include: { rules: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
+      if (isDefault) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { defaultAvailabilityScheduleId: created.id },
+        })
+      }
+      return created
     })
-
-    // If set as default, update user
-    if (isDefault) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { defaultAvailabilityScheduleId: schedule.id },
-      })
-    }
 
     return NextResponse.json(schedule, { status: 201 })
   } catch (error) {

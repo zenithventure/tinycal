@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { validateRules } from "@/lib/availability-validation"
 
 export async function GET(
   req: Request,
@@ -45,78 +46,65 @@ export async function PUT(
       return NextResponse.json({ error: "Schedule name is required" }, { status: 400 })
     }
 
-    // Validate rules if provided
-    if (rules && Array.isArray(rules)) {
-      for (const rule of rules) {
-        if (!rule.startTime || !rule.endTime) {
-          return NextResponse.json(
-            { error: "Each rule must have startTime and endTime" },
-            { status: 400 }
-          )
-        }
-      }
-    }
-
-    // If setting as default, unset any previous default
-    if (isDefault && !existing.isDefault) {
-      await prisma.availabilitySchedule.updateMany({
-        where: { userId: user.id, isDefault: true, id: { not: params.id } },
-        data: { isDefault: false },
-      })
-    }
-
-    // Update the schedule
-    await prisma.availabilitySchedule.update({
-      where: { id: params.id },
-      data: {
-        ...(name !== undefined && { name: name.trim() }),
-        ...(isDefault !== undefined && { isDefault }),
-      },
-    })
-
-    // Update rules if provided
     if (rules !== undefined) {
-      // Delete existing rules
-      await prisma.availabilityRule.deleteMany({
-        where: { availabilityScheduleId: params.id },
-      })
+      const err = validateRules(rules)
+      if (err) return NextResponse.json({ error: err }, { status: 400 })
+    }
 
-      // Create new rules
-      if (rules.length > 0) {
-        await prisma.availabilityRule.createMany({
-          data: rules.map((r: any) => ({
-            availabilityScheduleId: params.id,
-            dayOfWeek: r.dayOfWeek,
-            date: r.date ? new Date(r.date) : null,
-            startTime: r.startTime,
-            endTime: r.endTime,
-            enabled: r.enabled ?? true,
-          })),
+    // All writes go through one transaction so the schedule fields, rules
+    // replacement, and User.defaultAvailabilityScheduleId pointer can't drift
+    // apart on partial failure.
+    const refreshed = await prisma.$transaction(async (tx) => {
+      if (isDefault && !existing.isDefault) {
+        await tx.availabilitySchedule.updateMany({
+          where: { userId: user.id, isDefault: true, id: { not: params.id } },
+          data: { isDefault: false },
         })
       }
-    }
 
-    // Keep User.defaultAvailabilityScheduleId in sync with isDefault. The bug
-    // before: when isDefault and rules were both sent, the early return for
-    // the rules path skipped this update, so the pointer drifted from the
-    // schedule it should point at.
-    if (isDefault === true) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { defaultAvailabilityScheduleId: params.id },
+      await tx.availabilitySchedule.update({
+        where: { id: params.id },
+        data: {
+          ...(name !== undefined && { name: name.trim() }),
+          ...(isDefault !== undefined && { isDefault }),
+        },
       })
-    } else if (isDefault === false && existing.isDefault) {
-      // Clearing the default flag on the currently-default schedule clears
-      // the user pointer too — otherwise the User row keeps a stale ID.
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { defaultAvailabilityScheduleId: null },
-      })
-    }
 
-    const refreshed = await prisma.availabilitySchedule.findUnique({
-      where: { id: params.id },
-      include: { rules: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
+      if (rules !== undefined) {
+        await tx.availabilityRule.deleteMany({
+          where: { availabilityScheduleId: params.id },
+        })
+        if (rules.length > 0) {
+          await tx.availabilityRule.createMany({
+            data: rules.map((r: any) => ({
+              availabilityScheduleId: params.id,
+              dayOfWeek: r.dayOfWeek,
+              date: r.date ? new Date(r.date) : null,
+              startTime: r.startTime,
+              endTime: r.endTime,
+              enabled: r.enabled ?? true,
+            })),
+          })
+        }
+      }
+
+      // Keep User.defaultAvailabilityScheduleId in sync with isDefault.
+      if (isDefault === true) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { defaultAvailabilityScheduleId: params.id },
+        })
+      } else if (isDefault === false && existing.isDefault) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { defaultAvailabilityScheduleId: null },
+        })
+      }
+
+      return tx.availabilitySchedule.findUnique({
+        where: { id: params.id },
+        include: { rules: { orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
+      })
     })
 
     return NextResponse.json(refreshed)
