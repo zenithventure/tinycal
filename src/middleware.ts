@@ -9,7 +9,8 @@ const publicRoutes = [
   '/api/webhooks', '/api/availability', '/api/bookings',
   '/api/slots', '/api/stripe/webhook', '/api/auth',
   '/api/meeting-links',
-  '/api/v1',  // REST API — auths via Bearer api key in route handler
+  '/api/v1',   // REST API — auths via Bearer api key in route handler
+  '/api/cron', // cron routes — auth via Bearer CRON_SECRET in route handler
 ]
 
 function isPublicRoute(pathname: string): boolean {
