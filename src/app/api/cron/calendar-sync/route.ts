@@ -7,6 +7,7 @@ import { getGoogleCalendarEvent } from "@/lib/calendar/google"
 import { sendEmail, bookingCancelledEmail } from "@/lib/email"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 
 const reconcileInclude = {
   eventType: { include: { user: true } },
@@ -28,8 +29,7 @@ type ReconcileBooking = Prisma.BookingGetPayload<{ include: typeof reconcileIncl
 //
 // Recommended schedule: every 15 minutes.
 export async function GET(req: Request) {
-  const authHeader = req.headers.get("Authorization")
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

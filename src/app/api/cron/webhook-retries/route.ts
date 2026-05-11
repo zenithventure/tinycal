@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { attemptHttpDelivery, persistAttemptResult } from "@/lib/webhooks"
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 
 // Cron-driven retry of failed webhook deliveries.
 //
@@ -12,8 +13,7 @@ import { attemptHttpDelivery, persistAttemptResult } from "@/lib/webhooks"
 // Recommended schedule: every 1–2 minutes. 30s is the smallest backoff so
 // 1min granularity is fine.
 export async function GET(req: Request) {
-  const authHeader = req.headers.get("Authorization")
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

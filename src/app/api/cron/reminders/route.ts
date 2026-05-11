@@ -4,13 +4,12 @@ import { sendEmail, bookingReminderEmail } from "@/lib/email"
 import { sendSMS, bookingReminderSMS } from "@/lib/sms"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 
 // Called by cron job every 15 minutes
 // Sends reminders 1 hour before meetings
 export async function GET(req: Request) {
-  // Verify cron secret
-  const authHeader = req.headers.get("Authorization")
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
