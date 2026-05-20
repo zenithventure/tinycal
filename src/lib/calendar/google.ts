@@ -115,12 +115,19 @@ export async function createGoogleCalendarEvent(
 export type GoogleEventLookup =
   | { status: "ok"; start: Date; end: Date }
   | { status: "cancelled" }
+  | { status: "gone" }
   | { status: "not_found" }
   | { status: "error"; reason: string }
 
 // Read a single event by id. Used by the reconcile cron to detect when the
 // host moved or deleted the event directly in Google Calendar. Returns the
 // event status alongside its time window so callers can diff and decide.
+//
+// 410 Gone is split out from 404 because Google returns 410 specifically when
+// an event has been deleted (it lingers as `status: "cancelled"` for a window,
+// then 410). A 404 could also mean the eventId was never on this calendar —
+// e.g. a pre-primary-fix booking written to a different connection. Callers
+// treat "gone" as a confirmed deletion and "not_found" as ambiguous.
 export async function getGoogleCalendarEvent(
   userId: string,
   eventId: string
@@ -140,7 +147,8 @@ export async function getGoogleCalendarEvent(
     return { status: "ok", start: new Date(startStr), end: new Date(endStr) }
   } catch (err: unknown) {
     const code = (err as { code?: number; status?: number })?.code ?? (err as { code?: number; status?: number })?.status
-    if (code === 404 || code === 410) return { status: "not_found" }
+    if (code === 410) return { status: "gone" }
+    if (code === 404) return { status: "not_found" }
     return { status: "error", reason: err instanceof Error ? err.message : String(err) }
   }
 }

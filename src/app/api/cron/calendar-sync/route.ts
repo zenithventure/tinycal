@@ -23,9 +23,16 @@ type ReconcileBooking = Prisma.BookingGetPayload<{ include: typeof reconcileIncl
 // guaranteed to be a Google calendar event id. Outlook event ids aren't stored
 // on Booking today, so Outlook reconcile is a separate task.
 //
-// 404/410 from Google is treated as ambiguous (could be a stale connection on
-// a pre-primary-fix booking) and is logged + skipped rather than auto-cancelled.
-// Only an explicit status="cancelled" triggers cancellation.
+// Deletion handling:
+//  - status="cancelled" from Google → cancel (event still listed as cancelled).
+//  - 410 Gone → cancel (event has been deleted; this is the terminal state once
+//    Google purges the cancelled tombstone).
+//  - 404 Not Found → ambiguous (could be a stale connection on a pre-primary-fix
+//    booking where meetingId belongs to a different calendar). Logged + skipped.
+//
+// Window: looks ahead far enough to cover the longest booking horizon allowed
+// by EventType.maxFutureDays (default 60). 90 days gives a buffer for hosts
+// who raise the cap without leaving deletions silently un-synced for weeks.
 //
 // Recommended schedule: every 15 minutes.
 export async function GET(req: Request) {
@@ -35,7 +42,7 @@ export async function GET(req: Request) {
 
   const now = new Date()
   const windowStart = addHours(now, -1)
-  const windowEnd = addDays(now, 14)
+  const windowEnd = addDays(now, 90)
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -58,14 +65,15 @@ export async function GET(req: Request) {
     if (!b.meetingId) continue
     const ev = await getGoogleCalendarEvent(b.userId, b.meetingId)
 
-    if (ev.status === "cancelled") {
-      await reconcileCancellation(b)
+    if (ev.status === "cancelled" || ev.status === "gone") {
+      const reason = ev.status === "gone" ? "Deleted from calendar" : "Cancelled in calendar"
+      await reconcileCancellation(b, reason)
       cancelled++
       continue
     }
     if (ev.status === "not_found") {
       console.warn(
-        `[calendar-sync] event ${b.meetingId} not_found for booking ${b.id} — leaving as-is`
+        `[calendar-sync] event ${b.meetingId} not_found (404) for booking ${b.id} — leaving as-is (possible stale connection)`
       )
       skipped++
       continue
@@ -105,10 +113,10 @@ export async function GET(req: Request) {
   })
 }
 
-async function reconcileCancellation(booking: ReconcileBooking) {
+async function reconcileCancellation(booking: ReconcileBooking, reason: string) {
   await prisma.booking.update({
     where: { id: booking.id },
-    data: { status: "CANCELLED", cancelReason: "Cancelled in calendar" },
+    data: { status: "CANCELLED", cancelReason: reason },
   })
 
   const dateTimeStr = format(
@@ -124,7 +132,7 @@ async function reconcileCancellation(booking: ReconcileBooking) {
         name: booking.bookerName,
         eventTitle: booking.title,
         dateTime: dateTimeStr,
-        reason: "Cancelled in calendar",
+        reason,
       }),
     })
     if (booking.eventType.user.email) {
@@ -135,7 +143,7 @@ async function reconcileCancellation(booking: ReconcileBooking) {
           name: booking.eventType.user.name || "Host",
           eventTitle: booking.title,
           dateTime: dateTimeStr,
-          reason: "Cancelled in calendar",
+          reason,
         }),
       })
     }
@@ -150,5 +158,5 @@ async function reconcileCancellation(booking: ReconcileBooking) {
     console.error(`[calendar-sync] webhook fanout failed for booking ${booking.id}:`, e)
   }
 
-  console.log(`[calendar-sync] cancelled booking ${booking.id} (event removed from calendar)`)
+  console.log(`[calendar-sync] cancelled booking ${booking.id}: ${reason}`)
 }
