@@ -126,7 +126,7 @@ export default function EventTypesPage() {
                 <label className="block text-sm font-medium mb-1">Duration (minutes)</label>
                 <select value={form.duration} onChange={e => setForm({ ...form, duration: Number(e.target.value) })}
                   className="w-full border rounded-lg px-3 py-2">
-                  {[15, 30, 45, 60, 90, 120].map(d => (
+                  {[15, 20, 30, 45, 60, 90, 120].map(d => (
                     <option key={d} value={d}>{formatDuration(d)}</option>
                   ))}
                 </select>
