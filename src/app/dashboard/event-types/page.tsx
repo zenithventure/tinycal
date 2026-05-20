@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import { Plus, Copy, Pencil, Trash2, Calendar, Search, X } from "lucide-react"
+import { Plus, Copy, Pencil, Trash2, Calendar, Search, X, Users } from "lucide-react"
 import { formatDuration } from "@/lib/utils"
 
 function useDebounce(value: string, delay: number) {
@@ -61,6 +61,7 @@ export default function EventTypesPage() {
   }
 
   function copyLink(slug: string, userSlug: string) {
+    if (!userSlug) return
     navigator.clipboard.writeText(`${window.location.origin}/${userSlug}/${slug}`)
   }
 
@@ -176,7 +177,11 @@ export default function EventTypesPage() {
             <button onClick={() => { setSearch(""); searchRef.current?.focus() }}
               className="text-blue-600 text-sm hover:underline mt-2 inline-block">Clear search</button>
           </div>
-        ) : filteredEventTypes.map((et) => (
+        ) : filteredEventTypes.map((et) => {
+          const isCoHost = et.viewerRole === "CO_HOST"
+          // Co-hosted events live under the owner's booking URL, not the viewer's.
+          const bookingSlug = isCoHost ? (et.user?.slug || "") : (user?.slug || "")
+          return (
           <div key={et.id} className="bg-white border rounded-xl p-5 flex items-center justify-between hover:shadow-sm transition">
             <Link
               href={`/dashboard/event-types/${et.id}`}
@@ -184,31 +189,47 @@ export default function EventTypesPage() {
             >
               <div className="w-2 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: et.color }} />
               <div className="min-w-0">
-                <h3 className="font-semibold truncate">{et.title}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold truncate">{et.title}</h3>
+                  {isCoHost && (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5"
+                      title={`Owned by ${et.user?.name || et.user?.email || "another host"}`}
+                    >
+                      <Users className="w-3 h-3" /> Co-host
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500 truncate">
                   {formatDuration(et.duration)} · {et.location.replace("_", " ")} · {et._count?.bookings || 0} bookings
+                  {isCoHost && et.user?.name ? ` · with ${et.user.name}` : ""}
                 </p>
               </div>
             </Link>
             <div className="flex items-center gap-2 ml-3">
-              <button onClick={() => copyLink(et.slug, user?.slug || "")}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-                title="Copy booking page link" aria-label="Copy booking page link">
+              <button onClick={() => copyLink(et.slug, bookingSlug)}
+                disabled={!bookingSlug}
+                className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                title={bookingSlug ? "Copy booking page link" : "Owner hasn't published a public booking page yet"}
+                aria-label="Copy booking page link">
                 <Copy className="w-4 h-4 text-gray-500" />
               </button>
               <Link href={`/dashboard/event-types/${et.id}`}
                 className="p-2 hover:bg-gray-100 rounded-lg"
-                title="Edit" aria-label="Edit event type">
+                title={isCoHost ? "View (read-only)" : "Edit"} aria-label="View event type">
                 <Pencil className="w-4 h-4 text-gray-500" />
               </Link>
-              <button onClick={() => handleDelete(et.id)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-                title="Delete" aria-label="Delete event type">
-                <Trash2 className="w-4 h-4 text-red-500" />
-              </button>
+              {!isCoHost && (
+                <button onClick={() => handleDelete(et.id)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  title="Delete" aria-label="Delete event type">
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </button>
+              )}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

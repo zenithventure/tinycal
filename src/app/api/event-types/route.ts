@@ -7,12 +7,31 @@ export async function GET() {
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  // Co-hosts on a collective event type need to see it in their own dashboard,
+  // not just the owner. The booking/slots layer (src/app/api/slots/route.ts)
+  // already treats every member as a host, so visibility was the only gap.
+  // `isCollective: true` is required so flipping collective scheduling off
+  // re-hides the event from former co-hosts.
   const eventTypes = await prisma.eventType.findMany({
-    where: { userId: user.id },
-    include: { questions: { orderBy: { order: "asc" } }, _count: { select: { bookings: true } } },
+    where: {
+      OR: [
+        { userId: user.id },
+        { isCollective: true, collectiveMembers: { has: user.id } },
+      ],
+    },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      _count: { select: { bookings: true } },
+      user: { select: { id: true, name: true, email: true, slug: true } },
+    },
     orderBy: { createdAt: "desc" },
   })
-  return NextResponse.json(eventTypes)
+
+  const decorated = eventTypes.map((et) => ({
+    ...et,
+    viewerRole: et.userId === user.id ? ("OWNER" as const) : ("CO_HOST" as const),
+  }))
+  return NextResponse.json(decorated)
 }
 
 export async function POST(req: Request) {

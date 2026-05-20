@@ -12,9 +12,20 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  // Co-hosts on a collective event type are allowed to view (read-only); the
+  // PATCH/DELETE handlers below still gate mutation on ownership.
   const eventType = await prisma.eventType.findFirst({
-    where: { id: params.id, userId: user.id },
-    include: { questions: { orderBy: { order: "asc" } } },
+    where: {
+      id: params.id,
+      OR: [
+        { userId: user.id },
+        { isCollective: true, collectiveMembers: { has: user.id } },
+      ],
+    },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      user: { select: { id: true, name: true, email: true, slug: true } },
+    },
   })
   if (!eventType) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -29,7 +40,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     })
   }
 
-  return NextResponse.json({ ...eventType, collectiveHosts })
+  const viewerRole = eventType.userId === user.id ? ("OWNER" as const) : ("CO_HOST" as const)
+  return NextResponse.json({ ...eventType, collectiveHosts, viewerRole })
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {

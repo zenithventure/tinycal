@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, Save, X, AlertCircle } from "lucide-react"
+import { ArrowLeft, Save, X, AlertCircle, Users } from "lucide-react"
 import Link from "next/link"
 
 interface CoHost {
@@ -133,11 +133,16 @@ export default function EditEventTypePage() {
 
   if (!et) return <div className="animate-pulse">Loading...</div>
 
+  const isCoHost = et.viewerRole === "CO_HOST"
+  const readOnly = isCoHost
   const showsEmptyCollectiveWarning =
-    et.isCollective && (et.collectiveMembers ?? []).length === 0
+    !isCoHost && et.isCollective && (et.collectiveMembers ?? []).length === 0
 
   const previewHost = typeof window !== "undefined" ? window.location.host : "tinycal.zenithstudio.app"
-  const slugUrlPreview = userSlug ? `${previewHost}/${userSlug}/${et.slug}` : null
+  // For co-hosted events the booking page lives under the owner's slug, not the
+  // viewer's — using the viewer's slug here would render a 404 link.
+  const ownerSlug = isCoHost ? (et.user?.slug ?? "") : userSlug
+  const slugUrlPreview = ownerSlug ? `${previewHost}/${ownerSlug}/${et.slug}` : null
 
   return (
     <div>
@@ -145,10 +150,21 @@ export default function EditEventTypePage() {
         <Link href="/dashboard/event-types" className="p-2 hover:bg-gray-100 rounded-lg">
           <ArrowLeft className="w-4 h-4" />
         </Link>
-        <h1 className="text-2xl font-bold">Edit Event Type</h1>
+        <h1 className="text-2xl font-bold">{readOnly ? "Event Type" : "Edit Event Type"}</h1>
       </div>
 
-      <div className="bg-white border rounded-xl p-6 space-y-6">
+      {readOnly && (
+        <div className="mb-4 flex items-start gap-2 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+          <Users className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div>
+            You&apos;re a <strong>co-host</strong> on this event type. Only the
+            owner{et.user?.name ? ` (${et.user.name})` : et.user?.email ? ` (${et.user.email})` : ""} can edit it —
+            reach out to them if something needs to change.
+          </div>
+        </div>
+      )}
+
+      <fieldset disabled={readOnly} className="bg-white border rounded-xl p-6 space-y-6 disabled:opacity-90">
         <div>
           <label className="block text-sm font-medium mb-1">Title</label>
           <input type="text" value={et.title} onChange={e => setEt({ ...et, title: e.target.value })}
@@ -368,13 +384,15 @@ export default function EditEventTypePage() {
           </div>
         )}
 
-        <div className="flex justify-end">
-          <button onClick={handleSave} disabled={saving || !!slugError}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-            <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
-      </div>
+        {!readOnly && (
+          <div className="flex justify-end">
+            <button onClick={handleSave} disabled={saving || !!slugError}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+              <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        )}
+      </fieldset>
     </div>
   )
 }
