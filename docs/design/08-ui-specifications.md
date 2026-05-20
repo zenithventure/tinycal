@@ -430,7 +430,7 @@ Each stat card:
 | Field | Type | Placeholder |
 |-------|------|-------------|
 | Title | text input | "e.g. 30 Minute Meeting" |
-| Duration | select | [15, 30, 45, 60, 90, 120] minutes |
+| Duration | select | [15, 20, 30, 45, 60, 90, 120] minutes |
 | Location | select | Google Meet, Zoom, Phone, In Person, Custom |
 | Description | textarea | "Optional" |
 

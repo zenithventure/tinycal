@@ -182,7 +182,7 @@ export default function EditEventTypePage() {
             <label className="block text-sm font-medium mb-1">Duration (min)</label>
             <select value={et.duration} onChange={e => setEt({ ...et, duration: Number(e.target.value) })}
               className="w-full border rounded-lg px-3 py-2">
-              {[15, 30, 45, 60, 90, 120].map(d => <option key={d} value={d}>{d}</option>)}
+              {[15, 20, 30, 45, 60, 90, 120].map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
           <div>
