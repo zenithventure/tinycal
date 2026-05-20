@@ -31,6 +31,7 @@ import { GET, PATCH, DELETE } from "@/app/api/event-types/[id]/route"
 
 const OWNER = { id: "owner-1" } as any
 const OTHER = { id: "other-1" } as any
+const COHOST = { id: "alex-id" } as any
 
 const SOLO_ET = {
   id: "et-1",
@@ -81,6 +82,41 @@ describe("GET /api/event-types/[id]", () => {
     mockEventTypeFindFirst.mockResolvedValueOnce(null)
     const res = await GET(new Request("http://x"), { params: { id: "et-1" } })
     expect(res.status).toBe(404)
+  })
+
+  it("queries with OR(userId, collective+member) so co-hosts can read the event type", async () => {
+    mockGetAuthenticatedUser.mockResolvedValueOnce(COHOST)
+    mockEventTypeFindFirst.mockResolvedValueOnce(COLLECTIVE_ET)
+    mockUserFindMany.mockResolvedValueOnce([])
+
+    await GET(new Request("http://x"), { params: { id: "et-1" } })
+
+    expect(mockEventTypeFindFirst).toHaveBeenCalledTimes(1)
+    const arg = mockEventTypeFindFirst.mock.calls[0][0]
+    expect(arg.where).toEqual({
+      id: "et-1",
+      OR: [
+        { userId: "alex-id" },
+        { isCollective: true, collectiveMembers: { has: "alex-id" } },
+      ],
+    })
+  })
+
+  it("tags viewerRole=CO_HOST when viewer is a co-host but not the owner", async () => {
+    mockGetAuthenticatedUser.mockResolvedValueOnce(COHOST)
+    mockEventTypeFindFirst.mockResolvedValueOnce(COLLECTIVE_ET)
+    mockUserFindMany.mockResolvedValueOnce([])
+    const res = await GET(new Request("http://x"), { params: { id: "et-1" } })
+    const body = await res.json()
+    expect(body.viewerRole).toBe("CO_HOST")
+  })
+
+  it("tags viewerRole=OWNER when viewer owns the event type", async () => {
+    mockGetAuthenticatedUser.mockResolvedValueOnce(OWNER)
+    mockEventTypeFindFirst.mockResolvedValueOnce(SOLO_ET)
+    const res = await GET(new Request("http://x"), { params: { id: "et-1" } })
+    const body = await res.json()
+    expect(body.viewerRole).toBe("OWNER")
   })
 })
 
