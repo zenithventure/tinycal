@@ -22,10 +22,14 @@ interface ToastContextValue {
 // --- Variant config ---
 
 const variantClasses = {
-  success: "bg-green-100 text-green-700 border-green-200",
-  error: "bg-red-50 text-red-600 border-red-200",
-  warning: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  info: "bg-blue-50 text-blue-700 border-blue-200",
+  success:
+    "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/40 dark:text-green-200 dark:border-green-800",
+  error:
+    "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/50 dark:text-red-200 dark:border-red-900",
+  warning:
+    "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-200 dark:border-yellow-800",
+  info:
+    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-900",
 } as const
 
 const variantIcons = {

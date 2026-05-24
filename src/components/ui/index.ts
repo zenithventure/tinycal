@@ -15,3 +15,5 @@ export type { SkeletonProps } from "./skeleton"
 
 export { ToastProvider, useToast } from "./toast"
 export type { ToastVariant, ToastContextValue } from "./toast"
+
+export { ThemeToggle } from "./theme-toggle"
