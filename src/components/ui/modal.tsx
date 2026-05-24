@@ -30,7 +30,7 @@ function Modal({ open, onClose, title, children, className }: ModalProps) {
     >
       <div
         className={cn(
-          "bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6",
+          "bg-white dark:bg-gray-900 dark:text-gray-100 rounded-2xl shadow-xl w-full max-w-md mx-4 p-6",
           className
         )}
         onClick={(e) => e.stopPropagation()}

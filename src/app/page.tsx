@@ -1,17 +1,19 @@
 import Link from "next/link"
 import { Calendar, Check, ArrowRight, Zap } from "lucide-react"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen dark:bg-gray-900 dark:text-gray-100">
       {/* Nav */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="text-xl font-bold text-blue-600">
-            Tiny<span className="text-gray-900">Cal</span>
+            Tiny<span className="text-gray-900 dark:text-gray-100">Cal</span>
           </Link>
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm text-gray-600 hover:text-gray-900">
+            <ThemeToggle />
+            <Link href="/login" className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
               Log in
             </Link>
             <Link
@@ -26,14 +28,14 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-sm px-4 py-1.5 rounded-full mb-6">
+        <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-sm px-4 py-1.5 rounded-full mb-6">
           <Zap className="w-4 h-4" /> Simple scheduling, starting free
         </div>
-        <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-gray-900 mb-6 text-balance">
+        <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-6 text-balance">
           Schedule meetings.<br />Skip the back-and-forth.<br />
           <span className="text-blue-600">One platform.</span>
         </h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-10">
+        <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-10">
           Stop overpaying for scheduling. TinyCal gives you professional booking pages,
           calendar sync, and automatic meeting links — simple and affordable.
         </p>
@@ -46,19 +48,19 @@ export default function LandingPage() {
           </Link>
           <Link
             href="#features"
-            className="text-gray-600 px-8 py-3.5 rounded-lg text-lg border hover:bg-gray-50 transition"
+            className="text-gray-600 dark:text-gray-300 px-8 py-3.5 rounded-lg text-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
           >
             See Features
           </Link>
         </div>
-        <p className="text-sm text-gray-400 mt-4">No credit card required · Free plan available</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mt-4">No credit card required · Free plan available</p>
       </section>
 
       {/* Social proof */}
-      <section className="border-y bg-gray-50 py-8">
+      <section className="border-y border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 py-8">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <p className="text-sm text-gray-500 mb-4">TRUSTED BY FREELANCERS & SMALL BUSINESSES</p>
-          <div className="flex items-center justify-center gap-8 text-gray-400 text-lg font-medium">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">TRUSTED BY FREELANCERS & SMALL BUSINESSES</p>
+          <div className="flex items-center justify-center gap-8 text-gray-400 dark:text-gray-500 text-lg font-medium">
             <span>Consultants</span>
             <span>·</span>
             <span>Coaches</span>
@@ -73,17 +75,17 @@ export default function LandingPage() {
       {/* Features */}
       <section id="features" className="max-w-6xl mx-auto px-6 py-20">
         <h2 className="text-3xl font-bold text-center mb-4">Everything you need to get booked.</h2>
-        <p className="text-gray-600 text-center mb-12 max-w-xl mx-auto">
+        <p className="text-gray-600 dark:text-gray-400 text-center mb-12 max-w-xl mx-auto">
           Professional scheduling with all the features — none of the bloat.
         </p>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-          <div className="border rounded-2xl p-8 hover:shadow-lg transition">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
-              <Calendar className="w-6 h-6 text-blue-600" />
+          <div className="border border-gray-200 dark:border-gray-800 rounded-2xl p-8 hover:shadow-lg dark:hover:shadow-gray-950 transition">
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/40 rounded-xl flex items-center justify-center mb-4">
+              <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-300" />
             </div>
             <h3 className="text-xl font-semibold mb-3">Smart Scheduling</h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               Professional booking pages with calendar sync, timezone detection,
               and automatic meeting links.
             </p>
@@ -98,19 +100,19 @@ export default function LandingPage() {
                 "Embed on your website",
                 "Collective scheduling",
               ].map((f) => (
-                <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
+                <li key={f} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <Check className="w-4 h-4 text-green-500 shrink-0" /> {f}
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="border rounded-2xl p-8 hover:shadow-lg transition">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4">
-              <Check className="w-6 h-6 text-green-600" />
+          <div className="border border-gray-200 dark:border-gray-800 rounded-2xl p-8 hover:shadow-lg dark:hover:shadow-gray-950 transition">
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/40 rounded-xl flex items-center justify-center mb-4">
+              <Check className="w-6 h-6 text-green-600 dark:text-green-300" />
             </div>
             <h3 className="text-xl font-semibold mb-3">Built for You</h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               Designed for freelancers, consultants, and small teams who want
               scheduling that just works.
             </p>
@@ -125,7 +127,7 @@ export default function LandingPage() {
                 "Daily & weekly booking limits",
                 "Timezone-aware for everyone",
               ].map((f) => (
-                <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
+                <li key={f} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <Check className="w-4 h-4 text-green-500 shrink-0" /> {f}
                 </li>
               ))}
@@ -135,7 +137,7 @@ export default function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section className="bg-gray-50 py-20">
+      <section className="bg-gray-50 dark:bg-gray-950 py-20">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-12">How it works</h2>
           <div className="grid md:grid-cols-3 gap-8">
@@ -149,7 +151,7 @@ export default function LandingPage() {
                   {item.step}
                 </div>
                 <h3 className="font-semibold mb-2">{item.title}</h3>
-                <p className="text-gray-600 text-sm">{item.desc}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -159,15 +161,15 @@ export default function LandingPage() {
       {/* Pricing */}
       <section id="pricing" className="max-w-6xl mx-auto px-6 py-20">
         <h2 className="text-3xl font-bold text-center mb-4">Simple, honest pricing</h2>
-        <p className="text-gray-600 text-center mb-12">
+        <p className="text-gray-600 dark:text-gray-400 text-center mb-12">
           No hidden fees. No per-seat pricing. Just one low price for everything.
         </p>
         <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
           {/* Free */}
-          <div className="border rounded-2xl p-8">
+          <div className="border border-gray-200 dark:border-gray-800 rounded-2xl p-8">
             <h3 className="text-lg font-semibold mb-1">Free</h3>
             <p className="text-4xl font-bold mb-1">$0</p>
-            <p className="text-gray-500 text-sm mb-6">Forever free</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Forever free</p>
             <ul className="space-y-2 mb-8">
               {["1 event type", "3 signature sends/mo", "Basic scheduling", "Google Calendar sync"].map((f) => (
                 <li key={f} className="flex items-center gap-2 text-sm">
@@ -175,7 +177,7 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/login" className="block text-center border border-gray-300 py-2.5 rounded-lg hover:bg-gray-50 transition font-medium">
+            <Link href="/login" className="block text-center border border-gray-300 dark:border-gray-700 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition font-medium">
               Get Started
             </Link>
           </div>
@@ -186,8 +188,8 @@ export default function LandingPage() {
               MOST POPULAR
             </div>
             <h3 className="text-lg font-semibold mb-1">Pro</h3>
-            <p className="text-4xl font-bold mb-1">$5<span className="text-lg text-gray-500 font-normal">/mo</span></p>
-            <p className="text-gray-500 text-sm mb-6">or $48/year (save 20%)</p>
+            <p className="text-4xl font-bold mb-1">$5<span className="text-lg text-gray-500 dark:text-gray-400 font-normal">/mo</span></p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">or $48/year (save 20%)</p>
             <ul className="space-y-2 mb-8">
               {[
                 "Unlimited event types",
@@ -228,15 +230,15 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t py-12">
+      <footer className="border-t border-gray-200 dark:border-gray-800 py-12">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
             © 2026 TinyCal. All rights reserved.
           </div>
-          <div className="flex items-center gap-6 text-sm text-gray-500">
-            <Link href="/privacy" className="hover:text-gray-700">Privacy</Link>
-            <Link href="/terms" className="hover:text-gray-700">Terms</Link>
-            <a href="mailto:support@tinycal.io" className="hover:text-gray-700">Support</a>
+          <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+            <Link href="/privacy" className="hover:text-gray-700 dark:hover:text-gray-200">Privacy</Link>
+            <Link href="/terms" className="hover:text-gray-700 dark:hover:text-gray-200">Terms</Link>
+            <a href="mailto:support@tinycal.io" className="hover:text-gray-700 dark:hover:text-gray-200">Support</a>
           </div>
         </div>
       </footer>

@@ -9,20 +9,20 @@ function LoginForm() {
   const error = searchParams.get("error")
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-blue-600 mb-2">
-            Tiny<span className="text-gray-900">Cal</span>
+            Tiny<span className="text-gray-900 dark:text-gray-100">Cal</span>
           </h1>
-          <p className="text-gray-600">Welcome back</p>
+          <p className="text-gray-600 dark:text-gray-400">Welcome back</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white dark:bg-gray-950 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md text-sm text-red-700 dark:text-red-300">
               <p className="font-medium">Authentication error: {error}</p>
-              <p className="mt-1 text-xs text-red-500 break-all">
+              <p className="mt-1 text-xs text-red-500 dark:text-red-400 break-all">
                 Full URL: {typeof window !== 'undefined' ? window.location.href : ''}
               </p>
             </div>
@@ -30,7 +30,7 @@ function LoginForm() {
           <button
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
             type="button"
-            className="w-full py-2 px-4 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition flex items-center justify-center gap-2"
+            className="w-full py-2 px-4 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -60,7 +60,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center dark:bg-gray-900 dark:text-gray-100">Loading...</div>}>
       <LoginForm />
     </Suspense>
   )
