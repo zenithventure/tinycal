@@ -105,12 +105,22 @@ async function generateMeeting(
   end: Date
 ): Promise<{ meetingUrl?: string; meetingId?: string }> {
   if (eventType.location === "GOOGLE_MEET") {
+    // For collective event types, add co-hosts as Google attendees on the
+    // owner's event so Google sends them an invite, surfaces the Meet link,
+    // and (once they accept) drops the event onto their primary calendar —
+    // which is what getConflictingEvents reads for future scans. Without
+    // this, only the owner ever sees the meeting and co-hosts can be
+    // double-booked because their calendar holds nothing about it.
+    const coHostEmails = await getCollectiveCoHostEmails(eventType)
     const calEvent = await createGoogleCalendarEvent(eventType.userId, {
       summary: `${eventType.title} - ${input.bookerName}`,
       description: `Booked via TinyCal`,
       startTime: start,
       endTime: end,
-      attendees: [{ email: input.bookerEmail }],
+      attendees: [
+        { email: input.bookerEmail },
+        ...coHostEmails.map((email) => ({ email })),
+      ],
       conferenceData: true,
     })
     return { meetingUrl: calEvent?.meetingUrl ?? undefined, meetingId: calEvent?.id ?? undefined }
@@ -156,10 +166,21 @@ async function sendConfirmationEmails(
     console.error("Email send failed:", e)
   }
 
-  if (eventType.user.email) {
+  // Owner + collective co-hosts all need a "new booking" notification. Google
+  // Calendar will email attendees when conferenceData is created, but only if
+  // the co-host's email is on a Google-hosted mailbox; routing through our
+  // own template ensures everyone gets a TinyCal-styled confirmation with
+  // reschedule/cancel links regardless of provider.
+  const coHostEmails = await getCollectiveCoHostEmails(eventType)
+  const hostEmails = [eventType.user.email, ...coHostEmails].filter(
+    (e): e is string => Boolean(e)
+  )
+  const uniqueHostEmails = Array.from(new Set(hostEmails))
+
+  for (const hostEmail of uniqueHostEmails) {
     try {
       await sendEmail({
-        to: eventType.user.email,
+        to: hostEmail,
         subject: `New booking: ${eventType.title} with ${booking.bookerName}`,
         html: bookingConfirmationEmail({
           bookerName: eventType.user.name || "Host",
@@ -177,6 +198,22 @@ async function sendConfirmationEmails(
       console.error("Host email send failed:", e)
     }
   }
+}
+
+// Resolve a collective event type's co-host user IDs to their email addresses,
+// dropping any that don't have one on record. Returns [] for non-collective
+// event types or when the member list is empty — safe to call unconditionally.
+async function getCollectiveCoHostEmails(
+  eventType: EventType & { user: User }
+): Promise<string[]> {
+  if (!eventType.isCollective || eventType.collectiveMembers.length === 0) {
+    return []
+  }
+  const coHosts = await prisma.user.findMany({
+    where: { id: { in: eventType.collectiveMembers } },
+    select: { email: true },
+  })
+  return coHosts.map((u) => u.email).filter((e): e is string => Boolean(e))
 }
 
 async function fanoutWebhooks(userId: string, bookingId: string) {
