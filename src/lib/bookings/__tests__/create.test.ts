@@ -5,6 +5,7 @@ const mockEventTypeFindUnique = vi.fn()
 const mockBookingCreate = vi.fn()
 const mockContactUpsert = vi.fn()
 const mockCalendarConnectionFindFirst = vi.fn()
+const mockUserFindMany = vi.fn()
 const mockHasBookingConflict = vi.fn()
 const mockCreateGoogleCalendarEvent = vi.fn()
 const mockCreateZoomMeeting = vi.fn()
@@ -19,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     booking: { create: (...args: any[]) => mockBookingCreate(...args) },
     contact: { upsert: (...args: any[]) => mockContactUpsert(...args) },
     calendarConnection: { findFirst: (...args: any[]) => mockCalendarConnectionFindFirst(...args) },
+    user: { findMany: (...args: any[]) => mockUserFindMany(...args) },
   },
 }))
 
@@ -91,6 +93,7 @@ describe("createBooking", () => {
     mockBuildBookingPayload.mockResolvedValue({ booking: {}, eventType: {}, host: {} })
     mockCalendarConnectionFindFirst.mockResolvedValue(null)
     mockTriggerWebhooks.mockResolvedValue({})
+    mockUserFindMany.mockResolvedValue([])
   })
 
   describe("error paths", () => {
@@ -205,6 +208,103 @@ describe("createBooking", () => {
     it("does NOT create an Outlook event for GOOGLE_MEET bookings", async () => {
       await createBooking(VALID_INPUT)
       expect(mockCreateOutlookCalendarEvent).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("collective event types (Google Meet)", () => {
+    const COLLECTIVE_EVENT_TYPE = {
+      ...SOLO_EVENT_TYPE,
+      isCollective: true,
+      collectiveMembers: ["cohost-1", "cohost-2"],
+    }
+
+    beforeEach(() => {
+      mockEventTypeFindUnique.mockResolvedValue(COLLECTIVE_EVENT_TYPE)
+      mockUserFindMany.mockResolvedValue([
+        { email: "cohost1@example.com" },
+        { email: "cohost2@example.com" },
+      ])
+    })
+
+    it("includes every co-host email as a Google attendee on the owner's event", async () => {
+      await createBooking(VALID_INPUT)
+      expect(mockCreateGoogleCalendarEvent).toHaveBeenCalledWith(
+        "host-1",
+        expect.objectContaining({
+          attendees: [
+            { email: "alex@example.com" },
+            { email: "cohost1@example.com" },
+            { email: "cohost2@example.com" },
+          ],
+          conferenceData: true,
+        })
+      )
+    })
+
+    it("resolves co-host emails by querying the collectiveMembers ids", async () => {
+      await createBooking(VALID_INPUT)
+      expect(mockUserFindMany).toHaveBeenCalledWith({
+        where: { id: { in: ["cohost-1", "cohost-2"] } },
+        select: { email: true },
+      })
+    })
+
+    it("drops co-hosts that have no email on record from the attendee list", async () => {
+      mockUserFindMany.mockResolvedValue([
+        { email: "cohost1@example.com" },
+        { email: null },
+      ])
+      await createBooking(VALID_INPUT)
+      expect(mockCreateGoogleCalendarEvent).toHaveBeenCalledWith(
+        "host-1",
+        expect.objectContaining({
+          attendees: [
+            { email: "alex@example.com" },
+            { email: "cohost1@example.com" },
+          ],
+        })
+      )
+    })
+
+    it("sends a host confirmation email to the owner AND every co-host", async () => {
+      await createBooking(VALID_INPUT)
+      const hostEmailRecipients = mockSendEmail.mock.calls
+        .map((c) => c[0]?.to)
+        .filter((to) => to !== "alex@example.com") // drop the booker's email
+      expect(hostEmailRecipients).toEqual(
+        expect.arrayContaining([
+          "sze@example.com",
+          "cohost1@example.com",
+          "cohost2@example.com",
+        ])
+      )
+      expect(hostEmailRecipients).toHaveLength(3)
+    })
+
+    it("deduplicates the host email recipient list if a co-host is also the owner", async () => {
+      mockUserFindMany.mockResolvedValue([
+        { email: "sze@example.com" }, // same as owner
+        { email: "cohost2@example.com" },
+      ])
+      await createBooking(VALID_INPUT)
+      const hostEmailRecipients = mockSendEmail.mock.calls
+        .map((c) => c[0]?.to)
+        .filter((to) => to !== "alex@example.com")
+      expect(hostEmailRecipients.sort()).toEqual(
+        ["cohost2@example.com", "sze@example.com"].sort()
+      )
+    })
+
+    it("does NOT query users or pad attendees for non-collective event types", async () => {
+      mockEventTypeFindUnique.mockResolvedValue(SOLO_EVENT_TYPE)
+      await createBooking(VALID_INPUT)
+      expect(mockUserFindMany).not.toHaveBeenCalled()
+      expect(mockCreateGoogleCalendarEvent).toHaveBeenCalledWith(
+        "host-1",
+        expect.objectContaining({
+          attendees: [{ email: "alex@example.com" }],
+        })
+      )
     })
   })
 })
