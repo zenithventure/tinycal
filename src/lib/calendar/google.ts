@@ -86,6 +86,12 @@ export async function createGoogleCalendarEvent(
     const res = await calendar.events.insert({
       calendarId: "primary",
       conferenceDataVersion: event.conferenceData ? 1 : 0,
+      // Without sendUpdates: "all", Google's default is "none" — so attendees
+      // (the booker and, for collective event types, every co-host) never
+      // receive an invite email and the event may not sync to their primary
+      // calendars. events.patch already uses "all" for reschedules; mirror
+      // that here so create + update both notify everyone.
+      sendUpdates: "all",
       requestBody: {
         summary: event.summary,
         description: event.description,
