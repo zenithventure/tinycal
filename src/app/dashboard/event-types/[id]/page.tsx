@@ -17,6 +17,21 @@ interface Schedule {
   isDefault: boolean
 }
 
+interface ResolutionEventType {
+  id: string
+  title: string
+  slug: string
+  source: "EVENT_TYPE_SCHEDULE" | "USER_DEFAULT_SCHEDULE" | "LEGACY_AVAILABILITY" | "NONE"
+  scheduleId: string | null
+  scheduleName: string | null
+}
+
+interface ResolutionSummary {
+  defaultSchedule: { id: string; name: string; ruleCount: number } | null
+  legacyRuleCount: number
+  eventTypes: ResolutionEventType[]
+}
+
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 function validateSlug(s: string): string | null {
@@ -35,6 +50,7 @@ export default function EditEventTypePage() {
   const [originalSlug, setOriginalSlug] = useState<string>("")
   const [userSlug, setUserSlug] = useState<string>("")
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [resolution, setResolution] = useState<ResolutionSummary | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -49,6 +65,10 @@ export default function EditEventTypePage() {
     })
     fetch("/api/user").then(r => r.json()).then(u => setUserSlug(u?.slug ?? ""))
     fetch("/api/availability/schedules").then(r => r.json()).then(setSchedules)
+    fetch("/api/availability/resolution")
+      .then(r => r.ok ? r.json() : null)
+      .then(setResolution)
+      .catch(() => setResolution(null))
   }, [params.id])
 
   const slugError = et?.slug != null ? validateSlug(et.slug) : null
@@ -244,6 +264,11 @@ export default function EditEventTypePage() {
           <p className="text-xs text-gray-500 mt-1">
             Event type schedules override user defaults.
           </p>
+          <EffectiveSourceNote
+            eventTypeId={params.id as string}
+            resolution={resolution}
+            pendingScheduleId={et.availabilityScheduleId ?? null}
+          />
         </div>
 
         <h3 className="font-semibold mt-4">Scheduling Rules</h3>
@@ -393,6 +418,76 @@ export default function EditEventTypePage() {
           </div>
         )}
       </fieldset>
+    </div>
+  )
+}
+
+// Reflects the cascade in resolveAvailabilityRules so the editor can name the
+// actual winning source. Falls back to the saved-state summary when the user
+// hasn't touched the dropdown — otherwise we'd lie about a value they can't
+// see locally (rule counts for schedules).
+function EffectiveSourceNote({
+  eventTypeId,
+  resolution,
+  pendingScheduleId,
+}: {
+  eventTypeId: string
+  resolution: ResolutionSummary | null
+  pendingScheduleId: string | null
+}) {
+  if (!resolution) return null
+
+  const saved = resolution.eventTypes.find(e => e.id === eventTypeId)
+  // No saved entry yet (brand-new event type) — fall back to defaults-only logic.
+  const savedScheduleId = saved?.scheduleId ?? null
+
+  // If the user's pending pick matches what we already resolved, trust it.
+  // Otherwise re-derive *as if* only the schedule pointer changed, using the
+  // counts we know server-side.
+  let source: ResolutionEventType["source"]
+  let scheduleName: string | null = null
+
+  if (saved && pendingScheduleId === savedScheduleId) {
+    source = saved.source
+    scheduleName = saved.scheduleName
+  } else if (pendingScheduleId) {
+    // We don't know the picked schedule's rule count client-side — assume the
+    // selection wins and hint that saving will confirm.
+    source = "EVENT_TYPE_SCHEDULE"
+  } else if (resolution.defaultSchedule && resolution.defaultSchedule.ruleCount > 0) {
+    source = "USER_DEFAULT_SCHEDULE"
+    scheduleName = resolution.defaultSchedule.name
+  } else if (resolution.legacyRuleCount > 0) {
+    source = "LEGACY_AVAILABILITY"
+  } else {
+    source = "NONE"
+  }
+
+  const pendingDiffers = saved != null && pendingScheduleId !== savedScheduleId
+  const label =
+    source === "EVENT_TYPE_SCHEDULE"
+      ? `Currently using this event type's linked schedule${scheduleName ? ` (“${scheduleName}”)` : ""}.`
+      : source === "USER_DEFAULT_SCHEDULE"
+      ? `Currently using your default schedule${scheduleName ? ` (“${scheduleName}”)` : ""} — legacy availability rows are being shadowed.`
+      : source === "LEGACY_AVAILABILITY"
+      ? `Currently using your legacy Availability rules (no schedule is linked or has rules).`
+      : `No availability source resolves — bookings won't have any slots until you add rules.`
+
+  const tone =
+    source === "NONE"
+      ? "text-amber-700 bg-amber-50 border-amber-200"
+      : source === "LEGACY_AVAILABILITY"
+      ? "text-blue-800 bg-blue-50 border-blue-200"
+      : "text-gray-700 bg-gray-50 border-gray-200"
+
+  return (
+    <div className={`mt-2 text-xs border rounded px-3 py-2 ${tone}`}>
+      <div>{label}</div>
+      {pendingDiffers && (
+        <div className="mt-1 text-gray-600">
+          You changed the selection — save to apply.
+        </div>
+      )}
     </div>
   )
 }
