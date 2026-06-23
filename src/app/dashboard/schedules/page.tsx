@@ -25,6 +25,34 @@ function defaultRule(): Rule {
   return { dayOfWeek: 1, startTime: "09:00", endTime: "17:00", enabled: true }
 }
 
+// API returns Prisma DateTimes as ISO strings; <input type="date"> needs YYYY-MM-DD.
+// Slice the leading date segment so the round-trip stays in the UTC calendar day
+// that was originally stored.
+function toDateInputValue(input: string | undefined | null): string {
+  if (!input) return ""
+  return input.length >= 10 ? input.slice(0, 10) : input
+}
+
+function formatRuleDate(input: string): string {
+  const ymd = toDateInputValue(input)
+  const [y, m, d] = ymd.split("-").map(Number)
+  if (!y || !m || !d) return input
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+function todayYmd(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, "0")
+  const d = String(now.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
 function RulesEditor({
   rules,
   onChange,
@@ -38,44 +66,72 @@ function RulesEditor({
   function remove(idx: number) {
     onChange(rules.filter((_, i) => i !== idx))
   }
+  function setKind(idx: number, kind: "weekly" | "date") {
+    const r = rules[idx]
+    if (kind === "weekly") {
+      update(idx, { dayOfWeek: r.dayOfWeek ?? 1, date: undefined })
+    } else {
+      update(idx, { dayOfWeek: undefined, date: toDateInputValue(r.date) || todayYmd() })
+    }
+  }
   return (
     <div className="space-y-2">
       {rules.length === 0 && (
         <p className="text-sm text-gray-500">No rules yet. Add one below.</p>
       )}
-      {rules.map((r, i) => (
-        <div key={i} className="flex items-center gap-2 text-sm">
-          <select
-            value={r.dayOfWeek ?? 1}
-            onChange={e => update(i, { dayOfWeek: Number(e.target.value), date: undefined })}
-            className="border rounded px-2 py-1.5 bg-white"
-          >
-            {DAYS.map((d, idx) => (
-              <option key={idx} value={idx}>{d}</option>
-            ))}
-          </select>
-          <input
-            type="time"
-            value={r.startTime}
-            onChange={e => update(i, { startTime: e.target.value })}
-            className="border rounded px-2 py-1.5"
-          />
-          <span className="text-gray-500">—</span>
-          <input
-            type="time"
-            value={r.endTime}
-            onChange={e => update(i, { endTime: e.target.value })}
-            className="border rounded px-2 py-1.5"
-          />
-          <button
-            onClick={() => remove(i)}
-            className="text-gray-400 hover:text-red-600 p-1"
-            aria-label="Remove rule"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      ))}
+      {rules.map((r, i) => {
+        const kind: "weekly" | "date" = r.date ? "date" : "weekly"
+        return (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <select
+              value={kind}
+              onChange={e => setKind(i, e.target.value as "weekly" | "date")}
+              className="border rounded px-2 py-1.5 bg-white"
+            >
+              <option value="weekly">Weekly</option>
+              <option value="date">Specific date</option>
+            </select>
+            {kind === "weekly" ? (
+              <select
+                value={r.dayOfWeek ?? 1}
+                onChange={e => update(i, { dayOfWeek: Number(e.target.value), date: undefined })}
+                className="border rounded px-2 py-1.5 bg-white"
+              >
+                {DAYS.map((d, idx) => (
+                  <option key={idx} value={idx}>{d}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="date"
+                value={toDateInputValue(r.date)}
+                onChange={e => update(i, { date: e.target.value || todayYmd(), dayOfWeek: undefined })}
+                className="border rounded px-2 py-1.5 bg-white"
+              />
+            )}
+            <input
+              type="time"
+              value={r.startTime}
+              onChange={e => update(i, { startTime: e.target.value })}
+              className="border rounded px-2 py-1.5"
+            />
+            <span className="text-gray-500">—</span>
+            <input
+              type="time"
+              value={r.endTime}
+              onChange={e => update(i, { endTime: e.target.value })}
+              className="border rounded px-2 py-1.5"
+            />
+            <button
+              onClick={() => remove(i)}
+              className="text-gray-400 hover:text-red-600 p-1"
+              aria-label="Remove rule"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )
+      })}
       <button
         onClick={() => onChange([...rules, defaultRule()])}
         className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
@@ -322,7 +378,9 @@ export default function SchedulesPage() {
                       <span className="font-medium">
                         {rule.dayOfWeek !== undefined && rule.dayOfWeek !== null
                           ? DAYS[rule.dayOfWeek]
-                          : "Custom Date"}
+                          : rule.date
+                            ? formatRuleDate(rule.date)
+                            : "Custom Date"}
                       </span>
                       <span className="text-gray-600">
                         {rule.startTime} — {rule.endTime}
