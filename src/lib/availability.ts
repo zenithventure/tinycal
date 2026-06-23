@@ -52,6 +52,211 @@ export async function resolveAvailabilityRules(
   return prisma.availability.findMany({ where: { userId, enabled: true } })
 }
 
+// ─── Resolution reporting ───
+//
+// resolveAvailabilityRules silently cascades event-type schedule → user-default
+// schedule → legacy Availability rows. That's fine for booking math, but the
+// dashboard needs to tell users *which* source is winning — otherwise editing
+// legacy rows that are being shadowed by a schedule looks like a no-op.
+// (See issue #75.)
+
+export type AvailabilitySource =
+  | "EVENT_TYPE_SCHEDULE"
+  | "USER_DEFAULT_SCHEDULE"
+  | "LEGACY_AVAILABILITY"
+  | "NONE"
+
+export interface AvailabilitySourceInfo {
+  source: AvailabilitySource
+  scheduleId: string | null
+  scheduleName: string | null
+  ruleCount: number
+}
+
+export async function describeAvailabilitySource(
+  userId: string,
+  eventType: { availabilityScheduleId: string | null }
+): Promise<AvailabilitySourceInfo> {
+  if (eventType.availabilityScheduleId) {
+    const [schedule, ruleCount] = await Promise.all([
+      prisma.availabilitySchedule.findUnique({
+        where: { id: eventType.availabilityScheduleId },
+        select: { id: true, name: true },
+      }),
+      prisma.availabilityRule.count({
+        where: { availabilityScheduleId: eventType.availabilityScheduleId, enabled: true },
+      }),
+    ])
+    if (schedule && ruleCount > 0) {
+      return {
+        source: "EVENT_TYPE_SCHEDULE",
+        scheduleId: schedule.id,
+        scheduleName: schedule.name,
+        ruleCount,
+      }
+    }
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { defaultAvailabilityScheduleId: true },
+  })
+  if (user?.defaultAvailabilityScheduleId) {
+    const [schedule, ruleCount] = await Promise.all([
+      prisma.availabilitySchedule.findUnique({
+        where: { id: user.defaultAvailabilityScheduleId },
+        select: { id: true, name: true },
+      }),
+      prisma.availabilityRule.count({
+        where: { availabilityScheduleId: user.defaultAvailabilityScheduleId, enabled: true },
+      }),
+    ])
+    if (schedule && ruleCount > 0) {
+      return {
+        source: "USER_DEFAULT_SCHEDULE",
+        scheduleId: schedule.id,
+        scheduleName: schedule.name,
+        ruleCount,
+      }
+    }
+  }
+
+  const legacyCount = await prisma.availability.count({
+    where: { userId, enabled: true },
+  })
+  if (legacyCount > 0) {
+    return {
+      source: "LEGACY_AVAILABILITY",
+      scheduleId: null,
+      scheduleName: null,
+      ruleCount: legacyCount,
+    }
+  }
+
+  return { source: "NONE", scheduleId: null, scheduleName: null, ruleCount: 0 }
+}
+
+export interface AvailabilityResolutionSummary {
+  defaultSchedule: { id: string; name: string; ruleCount: number } | null
+  legacyRuleCount: number
+  eventTypes: Array<{
+    id: string
+    title: string
+    slug: string
+    source: AvailabilitySource
+    scheduleId: string | null
+    scheduleName: string | null
+  }>
+}
+
+export async function getAvailabilityResolutionSummary(
+  userId: string
+): Promise<AvailabilityResolutionSummary> {
+  const [user, eventTypes, legacyRuleCount] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        defaultAvailabilityScheduleId: true,
+        defaultAvailabilitySchedule: {
+          select: { id: true, name: true },
+        },
+      },
+    }),
+    prisma.eventType.findMany({
+      where: { userId },
+      select: { id: true, title: true, slug: true, availabilityScheduleId: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.availability.count({ where: { userId, enabled: true } }),
+  ])
+
+  let defaultSchedule: AvailabilityResolutionSummary["defaultSchedule"] = null
+  if (user?.defaultAvailabilitySchedule) {
+    const ruleCount = await prisma.availabilityRule.count({
+      where: {
+        availabilityScheduleId: user.defaultAvailabilitySchedule.id,
+        enabled: true,
+      },
+    })
+    defaultSchedule = {
+      id: user.defaultAvailabilitySchedule.id,
+      name: user.defaultAvailabilitySchedule.name,
+      ruleCount,
+    }
+  }
+
+  // Pre-fetch enabled-rule counts for every linked event-type schedule so we
+  // avoid an N+1 in describeAvailabilitySource when summarising.
+  const linkedScheduleIds = Array.from(
+    new Set(
+      eventTypes
+        .map((et) => et.availabilityScheduleId)
+        .filter((id): id is string => !!id)
+    )
+  )
+  const linkedSchedules = linkedScheduleIds.length
+    ? await prisma.availabilitySchedule.findMany({
+        where: { id: { in: linkedScheduleIds } },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { rules: { where: { enabled: true } } } },
+        },
+      })
+    : []
+  const linkedById = new Map(linkedSchedules.map((s) => [s.id, s]))
+
+  const eventTypeSummaries = eventTypes.map((et) => {
+    if (et.availabilityScheduleId) {
+      const linked = linkedById.get(et.availabilityScheduleId)
+      if (linked && linked._count.rules > 0) {
+        return {
+          id: et.id,
+          title: et.title,
+          slug: et.slug,
+          source: "EVENT_TYPE_SCHEDULE" as const,
+          scheduleId: linked.id,
+          scheduleName: linked.name,
+        }
+      }
+    }
+    if (defaultSchedule && defaultSchedule.ruleCount > 0) {
+      return {
+        id: et.id,
+        title: et.title,
+        slug: et.slug,
+        source: "USER_DEFAULT_SCHEDULE" as const,
+        scheduleId: defaultSchedule.id,
+        scheduleName: defaultSchedule.name,
+      }
+    }
+    if (legacyRuleCount > 0) {
+      return {
+        id: et.id,
+        title: et.title,
+        slug: et.slug,
+        source: "LEGACY_AVAILABILITY" as const,
+        scheduleId: null,
+        scheduleName: null,
+      }
+    }
+    return {
+      id: et.id,
+      title: et.title,
+      slug: et.slug,
+      source: "NONE" as const,
+      scheduleId: null,
+      scheduleName: null,
+    }
+  })
+
+  return {
+    defaultSchedule,
+    legacyRuleCount,
+    eventTypes: eventTypeSummaries,
+  }
+}
+
 export async function getAvailableSlots(options: AvailabilityOptions): Promise<TimeSlot[]> {
   const { userId, eventTypeId, startDate, endDate, timezone: _timezone } = options
 

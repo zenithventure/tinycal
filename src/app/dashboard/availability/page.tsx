@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Save } from "lucide-react"
+import { AlertTriangle, Save } from "lucide-react"
+import Link from "next/link"
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -12,8 +13,24 @@ interface Rule {
   enabled: boolean
 }
 
+interface ResolutionEventType {
+  id: string
+  title: string
+  slug: string
+  source: "EVENT_TYPE_SCHEDULE" | "USER_DEFAULT_SCHEDULE" | "LEGACY_AVAILABILITY" | "NONE"
+  scheduleId: string | null
+  scheduleName: string | null
+}
+
+interface ResolutionSummary {
+  defaultSchedule: { id: string; name: string; ruleCount: number } | null
+  legacyRuleCount: number
+  eventTypes: ResolutionEventType[]
+}
+
 export default function AvailabilityPage() {
   const [rules, setRules] = useState<Rule[]>([])
+  const [resolution, setResolution] = useState<ResolutionSummary | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -36,6 +53,10 @@ export default function AvailabilityPage() {
         setRules(byDay)
       }
     })
+    fetch("/api/availability/resolution")
+      .then(r => r.ok ? r.json() : null)
+      .then(setResolution)
+      .catch(() => setResolution(null))
   }, [])
 
   async function handleSave() {
@@ -50,6 +71,19 @@ export default function AvailabilityPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const eventTypeCount = resolution?.eventTypes.length ?? 0
+  const usingLegacy = (resolution?.eventTypes ?? []).filter(
+    e => e.source === "LEGACY_AVAILABILITY"
+  ).length
+  const shadowedByDefault = (resolution?.eventTypes ?? []).filter(
+    e => e.source === "USER_DEFAULT_SCHEDULE"
+  ).length
+  const shadowedByEventSchedule = (resolution?.eventTypes ?? []).filter(
+    e => e.source === "EVENT_TYPE_SCHEDULE"
+  ).length
+  const shadowedCount = shadowedByDefault + shadowedByEventSchedule
+  const legacyIsFullyShadowed = eventTypeCount > 0 && usingLegacy === 0
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -59,6 +93,33 @@ export default function AvailabilityPage() {
           <Save className="w-4 h-4" /> {saving ? "Saving..." : saved ? "Saved ✓" : "Save"}
         </button>
       </div>
+
+      {resolution && shadowedCount > 0 && (
+        <div className={`mb-4 flex items-start gap-2 text-sm border rounded-lg px-4 py-3 ${
+          legacyIsFullyShadowed
+            ? "text-amber-800 bg-amber-50 border-amber-200"
+            : "text-blue-800 bg-blue-50 border-blue-200"
+        }`}>
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div>
+            {legacyIsFullyShadowed ? (
+              <>
+                These legacy rules <strong>aren&apos;t being used</strong> right now —
+                every event type resolves availability from a{" "}
+                <Link href="/dashboard/schedules" className="underline">schedule</Link>{" "}
+                instead{resolution.defaultSchedule ? <> (default: “{resolution.defaultSchedule.name}”)</> : null}.
+                Editing these rows won&apos;t change your bookable slots.
+              </>
+            ) : (
+              <>
+                {shadowedCount} of {eventTypeCount} event types resolve availability from a{" "}
+                <Link href="/dashboard/schedules" className="underline">schedule</Link>{" "}
+                instead of these legacy rules. The remaining {usingLegacy} still use the rules below.
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white border rounded-xl divide-y">
         {rules.map((rule, i) => (

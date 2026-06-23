@@ -21,6 +21,21 @@ interface Schedule {
   rules: Rule[]
 }
 
+interface ResolutionEventType {
+  id: string
+  title: string
+  slug: string
+  source: "EVENT_TYPE_SCHEDULE" | "USER_DEFAULT_SCHEDULE" | "LEGACY_AVAILABILITY" | "NONE"
+  scheduleId: string | null
+  scheduleName: string | null
+}
+
+interface ResolutionSummary {
+  defaultSchedule: { id: string; name: string; ruleCount: number } | null
+  legacyRuleCount: number
+  eventTypes: ResolutionEventType[]
+}
+
 function defaultRule(): Rule {
   return { dayOfWeek: 1, startTime: "09:00", endTime: "17:00", enabled: true }
 }
@@ -88,6 +103,7 @@ function RulesEditor({
 
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [resolution, setResolution] = useState<ResolutionSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [newSchedule, setNewSchedule] = useState<{ name: string; rules: Rule[] }>({
@@ -106,9 +122,14 @@ export default function SchedulesPage() {
 
   async function fetchSchedules() {
     setLoading(true)
-    const res = await fetch("/api/availability/schedules")
-    const data = await res.json()
+    const [schedRes, resolutionRes] = await Promise.all([
+      fetch("/api/availability/schedules"),
+      fetch("/api/availability/resolution"),
+    ])
+    const data = await schedRes.json()
+    const resolution = resolutionRes.ok ? await resolutionRes.json().catch(() => null) : null
     setSchedules(data || [])
+    setResolution(resolution)
     setLoading(false)
   }
 
@@ -195,6 +216,23 @@ export default function SchedulesPage() {
     return <div className="text-center py-12">Loading schedules...</div>
   }
 
+  const usageByScheduleId = new Map<string, number>()
+  let defaultCascadeCount = 0
+  let legacyCascadeCount = 0
+  let noneCount = 0
+  for (const et of resolution?.eventTypes ?? []) {
+    if (et.source === "EVENT_TYPE_SCHEDULE" && et.scheduleId) {
+      usageByScheduleId.set(et.scheduleId, (usageByScheduleId.get(et.scheduleId) ?? 0) + 1)
+    } else if (et.source === "USER_DEFAULT_SCHEDULE") {
+      defaultCascadeCount++
+    } else if (et.source === "LEGACY_AVAILABILITY") {
+      legacyCascadeCount++
+    } else {
+      noneCount++
+    }
+  }
+  const eventTypeCount = resolution?.eventTypes.length ?? 0
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -206,6 +244,34 @@ export default function SchedulesPage() {
           <Plus className="w-4 h-4" /> New Schedule
         </button>
       </div>
+
+      {resolution && eventTypeCount > 0 && (
+        <div className="mb-6 bg-white border rounded-xl p-4 text-sm text-gray-700">
+          <div className="font-medium text-gray-900 mb-1">Where event types resolve availability today</div>
+          <ul className="space-y-0.5 text-gray-600">
+            {defaultCascadeCount > 0 && (
+              <li>
+                {defaultCascadeCount} of {eventTypeCount} use your default schedule
+                {resolution.defaultSchedule ? <> (“{resolution.defaultSchedule.name}”)</> : null}.
+              </li>
+            )}
+            {legacyCascadeCount > 0 && (
+              <li>
+                {legacyCascadeCount} of {eventTypeCount} still fall back to legacy Availability
+                {resolution.legacyRuleCount > 0 ? <> ({resolution.legacyRuleCount} legacy row{resolution.legacyRuleCount === 1 ? "" : "s"})</> : null}.
+              </li>
+            )}
+            {noneCount > 0 && (
+              <li className="text-amber-700">
+                {noneCount} of {eventTypeCount} have no resolvable availability — bookings will show no slots.
+              </li>
+            )}
+            {defaultCascadeCount === 0 && legacyCascadeCount === 0 && noneCount === 0 && (
+              <li>All event types are bound to a specific schedule.</li>
+            )}
+          </ul>
+        </div>
+      )}
 
       {creating && (
         <div className="bg-white border rounded-xl p-6 mb-6">
@@ -258,13 +324,35 @@ export default function SchedulesPage() {
           schedules.map(schedule => (
             <div key={schedule.id} className="bg-white border rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h3 className="text-lg font-semibold">{schedule.name}</h3>
                   {schedule.isDefault && (
                     <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-1 rounded flex items-center gap-1">
                       <Star className="w-3 h-3" /> Default
                     </span>
                   )}
+                  {resolution && (() => {
+                    const linked = usageByScheduleId.get(schedule.id) ?? 0
+                    const fellThrough = schedule.isDefault ? defaultCascadeCount : 0
+                    const total = linked + fellThrough
+                    if (total === 0) {
+                      return (
+                        <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
+                          No event types resolving here
+                        </span>
+                      )
+                    }
+                    return (
+                      <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                        {total} event type{total === 1 ? "" : "s"} resolve here
+                        {fellThrough > 0 && linked > 0
+                          ? ` (${linked} linked, ${fellThrough} via default)`
+                          : fellThrough > 0
+                          ? " (via default)"
+                          : ""}
+                      </span>
+                    )
+                  })()}
                 </div>
                 <div className="flex gap-2">
                   {editingId !== schedule.id && (
