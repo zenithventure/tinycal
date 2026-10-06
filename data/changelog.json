@@ -1,0 +1,19 @@
+{
+  "_readme": "HOW TO ADD A RELEASE: append ONE object to the top of `entries` (newest first), one block per release. Fields: id (unique slug, e.g. '2026-10-06-hardening'), date (YYYY-MM-DD), title, description, type (new | fixed | changed | breaking; the release headline type), tags (optional string[]), changes (optional sub-entries: [{ type, text }]). Nothing else needs editing: /changelog and the dashboard 'What's new' dot read this file. Keys starting with '_' are ignored.",
+  "entries": [
+    {
+      "id": "2026-10-06-hardening",
+      "date": "2026-10-06",
+      "title": "1.0 Hardening",
+      "description": "Our 1.0 hardening release: stricter CI, security fixes, and a tighter public API.",
+      "type": "breaking",
+      "tags": ["1.0", "security", "api"],
+      "changes": [
+        { "type": "new", "text": "New CI gates for typecheck, lint, and tests on every change." },
+        { "type": "fixed", "text": "Fixed a security issue where a Google calendar callback could be linked to another account." },
+        { "type": "breaking", "text": "The v1 API now requires tc_live_ API keys; raw user-id bearer tokens are no longer accepted." },
+        { "type": "fixed", "text": "Consolidated duplicated calendar client code into a single implementation." }
+      ]
+    }
+  ]
+}
