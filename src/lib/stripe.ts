@@ -5,7 +5,7 @@ import Stripe from "stripe"
 export const stripe = new Stripe(
   process.env.STRIPE_SECRET_KEY || "sk_test_placeholder_for_build",
   {
-    apiVersion: "2023-10-16",
+    apiVersion: "2026-01-28.clover",
     typescript: true,
   }
 )
@@ -33,9 +33,9 @@ export const PLANS = {
   },
 } as const
 
-export async function createCheckoutSession(userId: string, email: string, priceId: string) {
+export async function createCheckoutSession(userId: string, email: string | null, priceId: string) {
   const session = await stripe.checkout.sessions.create({
-    customer_email: email,
+    customer_email: email ?? undefined,
     mode: "subscription",
     payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
