@@ -30,8 +30,7 @@ export interface ParsedApiKey {
 }
 
 // Parses a full key like "tc_live_<prefix>_<secret>" into its parts. Returns
-// null for any string that doesn't match the format — used to fall through to
-// legacy User.id-as-Bearer auth.
+// null for any string that doesn't match the format.
 export function parseApiKey(key: string): ParsedApiKey | null {
   if (!key.startsWith(KEY_PREFIX)) return null
   const rest = key.slice(KEY_PREFIX.length)
