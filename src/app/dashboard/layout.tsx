@@ -7,6 +7,7 @@ import { Calendar, Clock, Settings, Webhook, LayoutDashboard, LogOut, Users, Men
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/contexts/auth-context"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { WhatsNewLink } from "@/components/whats-new-link"
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -67,6 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </Link>
         <div className="ml-auto flex items-center gap-3">
           <span className="text-sm text-gray-600 dark:text-gray-400 hidden sm:inline">{user?.email}</span>
+          <WhatsNewLink />
           <ThemeToggle />
           <button
             onClick={handleSignOut}
