@@ -8,14 +8,11 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ["@prisma/client", "bcryptjs"],
   },
-  // Disable ESLint and TypeScript checking during production builds
-  // to reduce memory usage. Type checking and linting happen during
-  // development and in CI/CD
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 }
 
