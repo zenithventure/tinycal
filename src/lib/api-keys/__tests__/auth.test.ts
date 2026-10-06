@@ -153,23 +153,19 @@ describe("authenticateApiKey", () => {
     })
   })
 
-  describe("legacy User.id path", () => {
-    it("falls back to User.id lookup for non-tc_live tokens", async () => {
-      mockUserFindUnique.mockResolvedValueOnce(TEST_USER)
+  describe("bare User.id bearer (legacy, removed)", () => {
+    it("rejects a bare User.id with 401 and a message pointing at tc_live keys", async () => {
       const result = await authenticateApiKey(makeReq({ Authorization: `Bearer ${TEST_USER.id}` }))
-      expect(isAuthFailure(result)).toBe(false)
-      if (!isAuthFailure(result)) {
-        expect(result.source).toBe("legacy-user-id")
-        expect(result.user.id).toBe(TEST_USER.id)
-      }
-      // Should NOT have hit the apiKey table
-      expect(mockApiKeyFindUnique).not.toHaveBeenCalled()
-    })
-
-    it("rejects an unknown legacy token", async () => {
-      mockUserFindUnique.mockResolvedValueOnce(null)
-      const result = await authenticateApiKey(makeReq({ Authorization: "Bearer unknown-cuid" }))
       expect(isAuthFailure(result)).toBe(true)
+      if (isAuthFailure(result)) {
+        expect(result.status).toBe(401)
+        expect(result.headers.get("Warning")).toBeNull()
+        const body = await result.json()
+        expect(body.error).toContain("tc_live_")
+      }
+      // Must not look up the user or the apiKey table at all
+      expect(mockUserFindUnique).not.toHaveBeenCalled()
+      expect(mockApiKeyFindUnique).not.toHaveBeenCalled()
     })
   })
 })
