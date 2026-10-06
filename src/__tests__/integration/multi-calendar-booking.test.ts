@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { getAvailableSlots } from "@/lib/availability"
 import { getConflictingEvents, clearEventCache } from "@/lib/calendar/conflict-detection"
-import type { CalendarEvent } from "@/lib/calendar/google-calendar"
+import type { CalendarEvent } from "@/lib/calendar/google"
 
 // ─── Mock Prisma ───
 
@@ -50,7 +50,7 @@ vi.mock("@/lib/prisma", () => ({
 const mockFetchGoogleCalendarEvents = vi.fn()
 const mockRefreshGoogleToken = vi.fn()
 
-vi.mock("@/lib/calendar/google-calendar", () => ({
+vi.mock("@/lib/calendar/google", () => ({
   fetchGoogleCalendarEvents: (...args: any[]) => mockFetchGoogleCalendarEvents(...args),
   refreshGoogleToken: (...args: any[]) => mockRefreshGoogleToken(...args),
 }))

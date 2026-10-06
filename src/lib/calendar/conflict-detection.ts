@@ -16,8 +16,8 @@
  * - Fails gracefully: if one calendar fails, events from others are still returned
  */
 import prisma from "../prisma"
-import { fetchGoogleCalendarEvents, refreshGoogleToken } from "./google-calendar"
-import type { CalendarEvent } from "./google-calendar"
+import { fetchGoogleCalendarEvents, refreshGoogleToken } from "./google"
+import type { CalendarEvent } from "./google"
 
 export type { CalendarEvent }
 
