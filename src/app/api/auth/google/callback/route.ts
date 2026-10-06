@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { getAuthenticatedUser } from "@/lib/auth"
 
 export async function GET(req: NextRequest) {
+  // /api/auth is allow-listed in middleware, so enforce the session here.
+  // `state` is the initiating user's id; it must match the signed-in user or
+  // an attacker could attach their own Google account to a victim's userId.
+  const user = await getAuthenticatedUser()
+  if (!user) {
+    return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_APP_URL!))
+  }
+
   const searchParams = req.nextUrl.searchParams
   const code = searchParams.get("code")
   const state = searchParams.get("state") // userId
   const error = searchParams.get("error")
 
-  if (error || !code || !state) {
+  if (error || !code || !state || state !== user.id) {
     return NextResponse.redirect(new URL("/dashboard/settings?error=GoogleAuthFailed", process.env.NEXT_PUBLIC_APP_URL!))
   }
 
