@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 const publicRoutes = [
   '/', '/login',
   '/api/webhooks', '/api/availability', '/api/bookings',
-  '/api/slots', '/api/stripe/webhook', '/api/auth',
+  '/api/slots', '/api/stripe/webhook', '/api/stripe/booking-payment', '/api/auth',
   '/api/meeting-links',
   '/api/v1',   // REST API — auths via Bearer api key in route handler
   '/api/cron', // cron routes — auth via Bearer CRON_SECRET in route handler
