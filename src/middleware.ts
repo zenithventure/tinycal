@@ -10,6 +10,7 @@ const publicRoutes = [
   '/api/slots', '/api/stripe/webhook', '/api/stripe/booking-payment', '/api/auth',
   '/api/meeting-links',
   '/api/v1',   // REST API — auths via Bearer api key in route handler
+  '/unsubscribe', '/unsubscribed',
   '/api/cron', // cron routes — auth via Bearer CRON_SECRET in route handler
 ]
 

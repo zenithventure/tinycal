@@ -24,6 +24,8 @@ const all = (m: Method[], c: AuthClass) => Object.fromEntries(m.map((x) => [x, c
 
 // route dir (relative to src/app/api) -> method -> class
 const MANIFEST: Record<string, Partial<Record<Method, AuthClass>>> = {
+  // Admin-only (ADMIN_EMAILS) release announcements; session + 403 for non-admins.
+  "admin/announce": all(["GET", "POST"], SESSION),
   "api-keys": all(["GET", "POST"], SESSION),
   "api-keys/[id]/revoke": all(["POST"], SESSION),
   // Auth.js handlers (login/session/csrf endpoints) — public by design.

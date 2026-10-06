@@ -17,6 +17,7 @@ authenticate it and the handler must.
 
 | Route | Methods | Class | Allow-listed | Where auth is enforced |
 |---|---|---|---|---|
+| `/api/admin/announce` | GET, POST | SESSION (admin only via `ADMIN_EMAILS`) | no | handler (403 for non-admins) |
 | `/api/api-keys` | GET, POST | SESSION | no | middleware + handler |
 | `/api/api-keys/[id]/revoke` | POST | SESSION | no | middleware + handler |
 | `/api/auth/[...nextauth]` | GET, POST | PUBLIC | yes | Auth.js handlers (login/session/csrf) |
