@@ -1,11 +1,13 @@
 import { Client } from "@microsoft/microsoft-graph-client"
 import prisma from "../prisma"
+import { encryptToken, withDecryptedTokens } from "./tokens"
 
 async function getOutlookClient(userId: string) {
-  const connection = await prisma.calendarConnection.findFirst({
+  const stored = await prisma.calendarConnection.findFirst({
     where: { userId, provider: "OUTLOOK" },
   })
-  if (!connection) return null
+  if (!stored) return null
+  const connection = await withDecryptedTokens(stored)
 
   // Check if token needs refresh
   if (connection.expiresAt && connection.expiresAt < new Date()) {
@@ -14,8 +16,8 @@ async function getOutlookClient(userId: string) {
       await prisma.calendarConnection.update({
         where: { id: connection.id },
         data: {
-          accessToken: refreshed.access_token,
-          refreshToken: refreshed.refresh_token || connection.refreshToken,
+          accessToken: encryptToken(refreshed.access_token),
+          refreshToken: encryptToken(refreshed.refresh_token || connection.refreshToken),
           expiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
         },
       })

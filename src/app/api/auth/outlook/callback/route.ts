@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { encryptToken } from "@/lib/calendar/tokens"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 
@@ -52,15 +53,15 @@ export async function GET(req: Request) {
       },
     },
     update: {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken: encryptToken(tokens.access_token),
+      refreshToken: encryptToken(tokens.refresh_token),
       expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
     },
     create: {
       userId: user.id,
       provider: "OUTLOOK",
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken: encryptToken(tokens.access_token),
+      refreshToken: encryptToken(tokens.refresh_token),
       expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
       email: profile.mail || profile.userPrincipalName,
     },

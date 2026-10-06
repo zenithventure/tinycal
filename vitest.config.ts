@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    env: { CALENDAR_TOKEN_KEY: Buffer.alloc(32, 7).toString("base64") },
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     coverage: {
       reporter: ["text", "lcov"],

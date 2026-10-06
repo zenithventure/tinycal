@@ -67,6 +67,22 @@ describe("PATCH /api/calendar-connections/[id]", () => {
   })
 })
 
+describe("PATCH response token hygiene", () => {
+  it("never returns stored (encrypted) OAuth tokens to the client", async () => {
+    mockGetAuthenticatedUser.mockResolvedValue(OWNER)
+    mockFindUnique.mockResolvedValueOnce({ userId: OWNER.id, isPrimary: false })
+    mockUpdate.mockResolvedValueOnce({
+      id: "conn-1", label: "x", accessToken: "v1.abc", refreshToken: "v1.def",
+    })
+    const res = await PATCH(
+      new Request("http://x", { method: "PATCH", body: JSON.stringify({ label: "x" }) }),
+      { params: { id: "conn-1" } }
+    )
+    const body = await res.json()
+    expect(body).toEqual({ id: "conn-1", label: "x" })
+  })
+})
+
 describe("DELETE /api/calendar-connections/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks()
