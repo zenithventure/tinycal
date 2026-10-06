@@ -1,0 +1,159 @@
+name: Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version (semver, e.g. 1.2.0). Default: bump patch of the last tinycal-v* tag'
+        required: false
+        type: string
+      with_notes_note:
+        description: 'Manual customer-facing note (what changed, who is affected, what to do)'
+        required: false
+        type: string
+
+  push:
+    branches: [main]
+
+# One release run at a time so tag computation cannot race.
+concurrency:
+  group: releases
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version and previous tag
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.release_version }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          PREV_TAG=$(git tag --list 'tinycal-v*' --sort=-v:refname | head -n 1 || true)
+
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="${INPUT_VERSION#v}"
+            if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::release_version must be semver X.Y.Z (got '$INPUT_VERSION')"
+              exit 1
+            fi
+          elif [ -n "$PREV_TAG" ]; then
+            BASE="${PREV_TAG#tinycal-v}"
+            IFS=. read -r MAJOR MINOR PATCH <<< "$BASE"
+            VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          else
+            VERSION="0.1.0"
+          fi
+
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=tinycal-v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Skip push releases with nothing new
+        id: gate
+        env:
+          PREV_TAG: ${{ steps.version.outputs.prev_tag }}
+        run: |
+          set -euo pipefail
+          # Manual dispatch always releases; pushes only when commits exist since the last tag.
+          if [ "${{ github.event_name }}" = "push" ] && [ -n "$PREV_TAG" ] \
+             && [ "$(git rev-list --count "$PREV_TAG..HEAD")" = "0" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build release notes
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREV_TAG: ${{ steps.version.outputs.prev_tag }}
+          MANUAL_NOTE: ${{ github.event.inputs.with_notes_note }}
+        run: |
+          set -euo pipefail
+          RANGE="HEAD"
+          [ -n "$PREV_TAG" ] && RANGE="$PREV_TAG..HEAD"
+
+          # PR numbers from merge commits ("Merge pull request #N") and squash commits ("title (#N)").
+          PRS=$(git log "$RANGE" --format='%s' \
+            | grep -oE 'Merge pull request #[0-9]+|\(#[0-9]+\)' \
+            | grep -oE '[0-9]+' | sort -un || true)
+
+          : > breaking.md; : > new.md; : > fixed.md; : > changed.md
+          for N in $PRS; do
+            TITLE=$(gh pr view "$N" --repo "$GITHUB_REPOSITORY" --json title --jq .title 2>/dev/null || true)
+            [ -z "$TITLE" ] && continue
+            LINE="- $TITLE ([#$N]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$N))"
+            LOWER=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]')
+            case "$LOWER" in
+              *breaking*|*!:*) echo "$LINE" >> breaking.md ;;
+              feat*|add*)      echo "$LINE" >> new.md ;;
+              fix*)            echo "$LINE" >> fixed.md ;;
+              *)               echo "$LINE" >> changed.md ;;
+            esac
+          done
+
+          {
+            echo "## tinycal ${{ steps.version.outputs.tag }}"
+            echo
+            echo "Released $(date -u +%Y-%m-%d) from \`${GITHUB_SHA::7}\`."
+            echo
+            for SECTION in "Breaking changes:breaking.md" "New:new.md" "Fixed:fixed.md" "Changed:changed.md"; do
+              if [ -s "${SECTION#*:}" ]; then
+                echo "### ${SECTION%%:*}"
+                cat "${SECTION#*:}"
+                echo
+              fi
+            done
+            if [ -z "$PRS" ]; then
+              echo "_No merged pull requests since ${PREV_TAG:-the start of history}._"
+              echo
+            fi
+            echo "### Notes"
+            if [ -n "$MANUAL_NOTE" ]; then
+              echo "$MANUAL_NOTE"
+            else
+              echo "_No manual notes for this release._"
+            fi
+            echo
+            echo "Customer-facing notes are also kept in \`data/changelog.json\` (the shared source). See docs/RELEASING.md for the note rule."
+            if [ -n "$PREV_TAG" ]; then
+              echo
+              echo "**Full diff:** $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$PREV_TAG...${{ steps.version.outputs.tag }}"
+            fi
+          } > notes.md
+
+      - name: Create or update GitHub Release
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "$TAG" --notes-file notes.md
+          fi
+
+      - name: Release summary
+        if: always()
+        run: |
+          echo "## Release - ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Published:** ${{ steps.gate.outputs.proceed }}" >> $GITHUB_STEP_SUMMARY
