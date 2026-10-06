@@ -15,7 +15,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, account, profile }) {
       if (account && profile?.email) {
         console.log("[auth] JWT callback: looking up user", profile.email)
-        let user
+        let user: Awaited<ReturnType<typeof prisma.user.findUnique>>
         try {
           user = await prisma.user.findUnique({
             where: { email: profile.email },
@@ -37,7 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             slug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`
           }
 
-          user = await prisma.user.create({
+          const newUser = await prisma.user.create({
             data: {
               email: profile.email,
               name: profile.name ?? null,
@@ -46,10 +46,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
           })
 
+          user = newUser
+
           // Set up default Mon-Fri 9am-5pm availability
           await prisma.availability.createMany({
             data: [1, 2, 3, 4, 5].map((day) => ({
-              userId: user.id,
+              userId: newUser.id,
               dayOfWeek: day,
               startTime: "09:00",
               endTime: "17:00",

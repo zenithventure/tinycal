@@ -76,7 +76,10 @@ const originalFetch = global.fetch
 const TEST_USER_ID = "user-integration-1"
 const TEST_EVENT_TYPE_ID = "event-type-1"
 
-// Far-future dates to avoid minNotice filtering
+// Fixed test dates. The clock is pinned (see beforeEach) so these stay "in the
+// future" relative to now; otherwise slots on a real-world past date are
+// filtered out by the availability logic and the tests rot as time passes.
+const FIXED_NOW = new Date("2026-06-01T00:00:00Z")
 const FAR_FUTURE_DATE = new Date("2026-09-15T00:00:00Z")
 const FAR_FUTURE_END = new Date("2026-09-16T00:00:00Z")
 
@@ -156,12 +159,14 @@ function makeCalendarEvent(overrides: Partial<CalendarEvent> = {}): CalendarEven
 
 describe("Multi-Calendar Booking Flow - Integration Tests", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"], now: FIXED_NOW })
     vi.clearAllMocks()
     clearEventCache()
     global.fetch = vi.fn()
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     global.fetch = originalFetch
   })
 

@@ -176,7 +176,6 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     // Email to host
     try {
       if (booking.eventType.user.email) {
-        const hostContactInfo = contactLines.length > 0 ? `\n\nContact info:\n${contactLines.join("\n")}` : ""
         await sendEmail({
           to: booking.eventType.user.email,
           subject: `${name} confirmed: ${booking.eventType.title}`,
