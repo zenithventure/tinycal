@@ -13,7 +13,7 @@ Book meetings. Get signatures. One tool, $5/mo.
 - Availability engine — working hours, day-specific rules, buffer time, daily/weekly limits
 - Timezone auto-detection + display for bookers
 - Video conferencing — auto-generate Zoom & Google Meet links
-- Email confirmations + reminders (Amazon SES)
+- Email confirmations + reminders (Resend)
 - SMS reminders (Twilio)
 - Reschedule/cancel — self-service links for bookers
 - Custom intake questions on booking page
@@ -38,7 +38,7 @@ Book meetings. Get signatures. One tool, $5/mo.
 - **Database:** Neon serverless PostgreSQL + Prisma
 - **Auth:** Auth.js v5 (Google OAuth)
 - **Payments:** Stripe
-- **Email:** Amazon SES via Nodemailer
+- **Email:** Resend
 - **SMS:** Twilio
 - **Calendar:** Google Calendar API, Microsoft Graph API
 - **Video:** Zoom API, Google Meet (via Calendar API)
