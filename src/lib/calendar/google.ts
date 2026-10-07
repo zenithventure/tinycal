@@ -1,5 +1,6 @@
 import { google } from "googleapis"
 import prisma from "../prisma"
+import { encryptToken, withDecryptedTokens } from "./tokens"
 
 export function getGoogleOAuth2Client() {
   return new google.auth.OAuth2(
@@ -13,11 +14,12 @@ export async function getGoogleCalendarClient(userId: string) {
   // Prefer the connection the user marked as Primary so events land on the
   // host's intended calendar. Non-primary Google calendars stay connected
   // for conflict checking only (see conflict-detection.ts).
-  const connection = await prisma.calendarConnection.findFirst({
+  const stored = await prisma.calendarConnection.findFirst({
     where: { userId, provider: "GOOGLE" },
     orderBy: { isPrimary: "desc" },
   })
-  if (!connection) return null
+  if (!stored) return null
+  const connection = await withDecryptedTokens(stored)
 
   const auth = getGoogleOAuth2Client()
   auth.setCredentials({
@@ -30,8 +32,8 @@ export async function getGoogleCalendarClient(userId: string) {
     await prisma.calendarConnection.update({
       where: { id: connection.id },
       data: {
-        accessToken: tokens.access_token || connection.accessToken,
-        refreshToken: tokens.refresh_token || connection.refreshToken,
+        accessToken: encryptToken(tokens.access_token || connection.accessToken),
+        refreshToken: encryptToken(tokens.refresh_token || connection.refreshToken),
         expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
       },
     })
@@ -386,11 +388,12 @@ export async function fetchGoogleCalendarEventsByConnectionId(
   startDate: Date,
   endDate: Date
 ): Promise<CalendarEvent[]> {
-  const connection = await prisma.calendarConnection.findUnique({
+  const stored = await prisma.calendarConnection.findUnique({
     where: { id: connectionId },
   })
 
-  if (!connection || connection.provider !== "GOOGLE") return []
+  if (!stored || stored.provider !== "GOOGLE") return []
+  const connection = await withDecryptedTokens(stored)
 
   // Check if token is expired and refresh proactively
   if (connection.expiresAt && connection.expiresAt < new Date() && connection.refreshToken) {
@@ -399,7 +402,7 @@ export async function fetchGoogleCalendarEventsByConnectionId(
       await prisma.calendarConnection.update({
         where: { id: connection.id },
         data: {
-          accessToken: refreshed.accessToken,
+          accessToken: encryptToken(refreshed.accessToken),
           expiresAt: refreshed.expiresAt,
         },
       })

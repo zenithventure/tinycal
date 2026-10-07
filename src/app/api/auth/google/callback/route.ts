@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { encryptToken } from "@/lib/calendar/tokens"
 import prisma from "@/lib/prisma"
 import { getAuthenticatedUser } from "@/lib/auth"
 
@@ -61,15 +62,15 @@ export async function GET(req: NextRequest) {
         },
       },
       update: {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || undefined,
+        accessToken: encryptToken(tokens.access_token),
+        refreshToken: encryptToken(tokens.refresh_token) || undefined,
         expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : undefined,
       },
       create: {
         userId: state,
         provider: "GOOGLE",
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || undefined,
+        accessToken: encryptToken(tokens.access_token),
+        refreshToken: encryptToken(tokens.refresh_token) || undefined,
         expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : undefined,
         email: userInfo.email,
         isPrimary: !existingPrimary, // Only set as primary if no existing primary

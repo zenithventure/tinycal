@@ -18,6 +18,7 @@
 import prisma from "../prisma"
 import { fetchGoogleCalendarEvents, refreshGoogleToken } from "./google"
 import type { CalendarEvent } from "./google"
+import { encryptToken, withDecryptedTokens } from "./tokens"
 
 export type { CalendarEvent }
 
@@ -136,11 +137,13 @@ async function fetchEventsForConnection(
   startDate: Date,
   endDate: Date
 ): Promise<CalendarEvent[]> {
+  // Tokens are stored encrypted; decrypt (and migrate legacy plaintext) here.
+  const decrypted = await withDecryptedTokens(connection)
   switch (connection.provider) {
     case "GOOGLE":
-      return fetchGoogleEvents(connection, startDate, endDate)
+      return fetchGoogleEvents(decrypted, startDate, endDate)
     case "OUTLOOK":
-      return fetchOutlookEvents(connection, startDate, endDate)
+      return fetchOutlookEvents(decrypted, startDate, endDate)
     default:
       console.warn(`Unknown calendar provider: ${connection.provider}`)
       return []
@@ -179,7 +182,7 @@ async function fetchGoogleEvents(
       await prisma.calendarConnection.update({
         where: { id: connection.id },
         data: {
-          accessToken: refreshed.accessToken,
+          accessToken: encryptToken(refreshed.accessToken),
           expiresAt: refreshed.expiresAt,
         },
       })
@@ -225,8 +228,8 @@ async function fetchOutlookEvents(
         await prisma.calendarConnection.update({
           where: { id: connection.id },
           data: {
-            accessToken: refreshed.access_token,
-            refreshToken: refreshed.refresh_token || connection.refreshToken,
+            accessToken: encryptToken(refreshed.access_token),
+            refreshToken: encryptToken(refreshed.refresh_token || connection.refreshToken),
             expiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
           },
         })
@@ -264,8 +267,8 @@ async function fetchOutlookEvents(
         await prisma.calendarConnection.update({
           where: { id: connection.id },
           data: {
-            accessToken: refreshed.access_token,
-            refreshToken: refreshed.refresh_token || connection.refreshToken,
+            accessToken: encryptToken(refreshed.access_token),
+            refreshToken: encryptToken(refreshed.refresh_token || connection.refreshToken),
             expiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
           },
         })

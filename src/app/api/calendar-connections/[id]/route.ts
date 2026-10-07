@@ -91,7 +91,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     },
   })
 
-  return NextResponse.json(updated)
+  // Never return OAuth tokens (stored encrypted) to the client.
+  const { accessToken: _a, refreshToken: _r, ...safe } = updated
+  return NextResponse.json(safe)
 }
 
 /**
