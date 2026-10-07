@@ -14,7 +14,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account && profile?.email) {
-        console.log("[auth] JWT callback: looking up user", profile.email)
         let user: Awaited<ReturnType<typeof prisma.user.findUnique>>
         try {
           user = await prisma.user.findUnique({
