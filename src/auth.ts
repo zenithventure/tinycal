@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import prisma from '@/lib/prisma'
+import { track } from '@/lib/track'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -46,6 +47,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           })
 
           user = newUser
+
+          // #116 setup-completion metric: one user_signed_up per user, only
+          // on first sign-in (i.e. only when the user row is created here).
+          // Fire-and-forget: sign-in must never depend on analytics.
+          void track("user_signed_up", { userId: newUser.id })
 
           // Set up default Mon-Fri 9am-5pm availability
           await prisma.availability.createMany({

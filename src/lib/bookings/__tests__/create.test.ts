@@ -13,6 +13,7 @@ const mockCreateOutlookCalendarEvent = vi.fn()
 const mockSendEmail = vi.fn()
 const mockTriggerWebhooks = vi.fn()
 const mockBuildBookingPayload = vi.fn()
+const mockTrack = vi.fn()
 
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -22,6 +23,10 @@ vi.mock("@/lib/prisma", () => ({
     calendarConnection: { findFirst: (...args: any[]) => mockCalendarConnectionFindFirst(...args) },
     user: { findMany: (...args: any[]) => mockUserFindMany(...args) },
   },
+}))
+
+vi.mock("@/lib/track", () => ({
+  track: (...args: any[]) => mockTrack(...args),
 }))
 
 vi.mock("@/lib/bookings/conflict-check", () => ({
@@ -303,6 +308,76 @@ describe("createBooking", () => {
         "host-1",
         expect.objectContaining({
           attendees: [{ email: "alex@example.com" }],
+        })
+      )
+    })
+  })
+
+  describe("#116 instrumentation (fire-and-forget)", () => {
+    it("emits booking_started then booking_completed (with bookingId, durationMs, visitId)", async () => {
+      const result = await createBooking({
+        ...VALID_INPUT,
+        visitId: "visit-99",
+        source: "api",
+      })
+      expect(result).toEqual({ ok: true, booking: expect.objectContaining({ id: "bk-1" }) })
+
+      const types = mockTrack.mock.calls.map((c: any[]) => c[0])
+      expect(types).toContain("booking_started")
+      expect(types).toContain("booking_completed")
+      expect(types.indexOf("booking_started")).toBeLessThan(types.indexOf("booking_completed"))
+
+      const completed = mockTrack.mock.calls.find((c: any[]) => c[0] === "booking_completed")!
+      expect(completed[1]).toEqual(
+        expect.objectContaining({
+          userId: "host-1",
+          bookingId: "bk-1",
+          eventType: "et-1",
+          source: "api",
+          meta: expect.objectContaining({
+            durationMs: expect.any(Number),
+            visitId: "visit-99",
+          }),
+        })
+      )
+    })
+
+    it("emits booking_failed with reason=conflict and no booking_completed on CONFLICT", async () => {
+      mockHasBookingConflict.mockResolvedValueOnce(true)
+      const result = await createBooking(VALID_INPUT)
+      expect(result).toEqual({ ok: false, error: "CONFLICT", status: 409 })
+
+      const types = mockTrack.mock.calls.map((c: any[]) => c[0])
+      expect(types).toContain("booking_failed")
+      expect(types).not.toContain("booking_completed")
+
+      const failed = mockTrack.mock.calls.find((c: any[]) => c[0] === "booking_failed")!
+      expect(failed[1]).toEqual(
+        expect.objectContaining({
+          meta: expect.objectContaining({ reason: "conflict" }),
+        })
+      )
+    })
+
+    it("still emits booking_started + booking_failed when the DB booking insert throws", async () => {
+      mockBookingCreate.mockRejectedValueOnce(new Error("P2002: unique constraint"))
+      await expect(createBooking(VALID_INPUT)).rejects.toThrow("P2002")
+
+      const types = mockTrack.mock.calls.map((c: any[]) => c[0])
+      expect(types).toContain("booking_started")
+      expect(types).toContain("booking_failed")
+      expect(types).not.toContain("booking_completed")
+    })
+
+    it("emits booking_failed for EVENT_TYPE_NOT_FOUND with the given event type id", async () => {
+      mockEventTypeFindUnique.mockResolvedValueOnce(null)
+      await createBooking(VALID_INPUT)
+
+      const failed = mockTrack.mock.calls.find((c: any[]) => c[0] === "booking_failed")!
+      expect(failed[1]).toEqual(
+        expect.objectContaining({
+          eventType: "et-1",
+          meta: expect.objectContaining({ reason: "other" }),
         })
       )
     })

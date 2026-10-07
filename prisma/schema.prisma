@@ -425,3 +425,27 @@ enum DocumentStatus {
   COMPLETED
   VOIDED
 }
+
+// ─── Analytics (self-hosted, #116) ───
+//
+// Fire-and-forget instrumentation events powering the four trust metrics
+// (booking conversion, time-to-book, conflict rate proxy, setup completion).
+// Written by `src/lib/track.ts` only on the server. No vendor, no PII beyond
+// userId/booking ids — see the #116 spec. The metrics script reads this table
+// (scripts/metrics.ts).
+
+model AnalyticsEvent {
+  id        String    @id @default(cuid())
+  type      String
+  userId    String?
+  bookingId String?
+  eventType String?
+  meta      Json      @default("{}")
+  source    String? // dashboard | booking_page | api | cron | e2e
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([bookingId])
+  @@index([createdAt])
+  @@index([type, createdAt])
+}

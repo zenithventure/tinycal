@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       bookerTimezone: body.bookerTimezone,
       bookerPhone: body.bookerPhone,
       answers: body.answers,
+      visitId: body.visitId,
     })
 
     if (!result.ok) {

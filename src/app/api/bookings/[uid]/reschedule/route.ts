@@ -6,6 +6,7 @@ import { updateOutlookCalendarEvent, createOutlookCalendarEvent } from "@/lib/ca
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { hasBookingConflict } from "@/lib/bookings/conflict-check"
+import { track } from "@/lib/track"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -126,6 +127,13 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
       meetingId,
       ...(isMeetingLinkPending && { status: "CONFIRMED", confirmedAt: new Date() }),
     },
+  })
+
+  // #116: booking_rescheduled after the booking row is updated in place.
+  void track("booking_rescheduled", {
+    userId: booking.userId,
+    bookingId: booking.id,
+    eventType: booking.eventTypeId,
   })
 
   // Send emails

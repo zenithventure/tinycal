@@ -7,6 +7,7 @@ import { createZoomMeeting } from "@/lib/video"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { hasBookingConflict } from "./conflict-check"
+import { track } from "@/lib/track"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -22,6 +23,10 @@ export interface CreateBookingInput {
   // Used by the v1 API so an API-key holder can only book their own
   // event types. Public booking-page POST omits this.
   requireOwnerUserId?: string
+  // Bookings are attributed to the host user (eventType.userId); accept the
+  // booker's visit id (from the booking page) for #116 time-to-book metrics.
+  visitId?: string
+  source?: string // dashboard | booking_page | api | cron | e2e
 }
 
 export type CreateBookingResult =
@@ -37,15 +42,37 @@ export type CreateBookingResult =
 // (across all hosts for collective event types), calendar event + meeting link
 // generation, contact upsert, confirmation emails, and webhook fanout.
 export async function createBooking(input: CreateBookingInput): Promise<CreateBookingResult> {
+  const startedAt = Date.now()
+  const visitMeta = input.visitId ? { visitId: input.visitId } : {}
+  // Instrumentation (#116): fire-and-forget — void, never in the return path.
+  void track("booking_started", {
+    userId: input.requireOwnerUserId,
+    eventType: input.eventTypeId,
+    source: input.source ?? "booking_page",
+    meta: visitMeta,
+  })
+
   const eventType = await prisma.eventType.findUnique({
     where: { id: input.eventTypeId },
     include: { user: true },
   })
   if (!eventType) {
+    void track("booking_failed", {
+      userId: input.requireOwnerUserId,
+      eventType: input.eventTypeId,
+      source: input.source ?? "booking_page",
+      meta: { reason: "other", ...visitMeta },
+    })
     return { ok: false, error: "EVENT_TYPE_NOT_FOUND", status: 404 }
   }
 
   if (input.requireOwnerUserId && eventType.userId !== input.requireOwnerUserId) {
+    void track("booking_failed", {
+      userId: input.requireOwnerUserId,
+      eventType: input.eventTypeId,
+      source: input.source ?? "booking_page",
+      meta: { reason: "other", ...visitMeta },
+    })
     return { ok: false, error: "FORBIDDEN", status: 403 }
   }
 
@@ -53,28 +80,53 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   const end = new Date(start.getTime() + eventType.duration * 60000)
 
   if (await hasBookingConflict({ eventType, start, end })) {
+    void track("booking_failed", {
+      userId: eventType.userId,
+      eventType: eventType.id,
+      source: input.source ?? "booking_page",
+      meta: { reason: "conflict", ...visitMeta },
+    })
     return { ok: false, error: "CONFLICT", status: 409 }
   }
 
   const { meetingUrl, meetingId } = await generateMeeting(eventType, input, start, end)
 
-  const booking = await prisma.booking.create({
-    data: {
-      eventTypeId: eventType.id,
+  let booking: Booking
+  try {
+    booking = await prisma.booking.create({
+      data: {
+        eventTypeId: eventType.id,
+        userId: eventType.userId,
+        title: eventType.title,
+        startTime: start,
+        endTime: end,
+        bookerName: input.bookerName,
+        bookerEmail: input.bookerEmail,
+        bookerTimezone: input.bookerTimezone,
+        bookerPhone: input.bookerPhone ?? null,
+        location: eventType.location,
+        meetingUrl,
+        meetingId,
+        answers: (input.answers ?? null) as any,
+        status: eventType.requirePayment ? "PENDING" : "CONFIRMED",
+      },
+    })
+  } catch (e) {
+    void track("booking_failed", {
       userId: eventType.userId,
-      title: eventType.title,
-      startTime: start,
-      endTime: end,
-      bookerName: input.bookerName,
-      bookerEmail: input.bookerEmail,
-      bookerTimezone: input.bookerTimezone,
-      bookerPhone: input.bookerPhone ?? null,
-      location: eventType.location,
-      meetingUrl,
-      meetingId,
-      answers: (input.answers ?? null) as any,
-      status: eventType.requirePayment ? "PENDING" : "CONFIRMED",
-    },
+      eventType: eventType.id,
+      source: input.source ?? "booking_page",
+      meta: { reason: "other", ...visitMeta },
+    })
+    throw e
+  }
+
+  void track("booking_completed", {
+    userId: eventType.userId,
+    bookingId: booking.id,
+    eventType: eventType.id,
+    source: input.source ?? "booking_page",
+    meta: { durationMs: Date.now() - startedAt, ...visitMeta },
   })
 
   await prisma.contact.upsert({
