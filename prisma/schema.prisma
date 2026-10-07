@@ -17,6 +17,8 @@ model User {
   emailVerified DateTime?
   image         String?
   timezone      String    @default("America/New_York")
+  // Release-announcement unsubscribe flag. null/false = still subscribed.
+  emailOptOut   Boolean?
   
   // Subscription
   stripeCustomerId     String?   @unique
