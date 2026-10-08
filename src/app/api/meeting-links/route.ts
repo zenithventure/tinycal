@@ -8,6 +8,7 @@ import { createOutlookCalendarEvent } from "@/lib/calendar/outlook"
 import { createZoomMeeting } from "@/lib/video"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
+import { track } from "@/lib/track"
 
 export async function POST(req: Request) {
   const user = await getAuthenticatedUser()
@@ -126,6 +127,17 @@ export async function POST(req: Request) {
         console.error("Meeting link invitation email failed:", e)
       }
     }
+
+    // #116: event_link_shared — the meeting link exists now (booking row
+    // committed). Fire-and-forget; inside the outer try/catch below, so a
+    // tracking failure cannot turn a success into a 500 (it can't: track
+    // never throws).
+    void track("event_link_shared", {
+      userId: user.id,
+      bookingId: booking.id,
+      eventType: eventType.id,
+      source: "dashboard",
+    })
 
     return NextResponse.json({ booking, shareUrl })
   } catch (error) {

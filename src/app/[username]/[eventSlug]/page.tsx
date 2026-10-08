@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma"
 import { notFound } from "next/navigation"
+import { track } from "@/lib/track"
 import BookingWidget from "@/components/booking-widget"
 
 export default async function BookingPage({
@@ -18,9 +19,21 @@ export default async function BookingPage({
   })
   if (!eventType) return notFound()
 
+  // #116 instrumentation — server render path, fire-and-forget (void):
+  // - public_page_view carries the slug (spec event list)
+  // - session_started is the conversion denominator; the booker's visitId
+  //   joins it to booking_started/booking_completed for time-to-book.
+  const visitId = crypto.randomUUID()
+  void track("public_page_view", {
+    userId: user.id,
+    meta: { slug: `${params.username}/${params.eventSlug}` },
+  })
+  void track("session_started", { meta: { visitId } })
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <BookingWidget
+        visitId={visitId}
         eventType={{
           id: eventType.id,
           title: eventType.title,

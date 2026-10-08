@@ -24,6 +24,9 @@ interface ConfirmedBooking {
 }
 
 interface BookingWidgetProps {
+  // #116: opaque session id generated on the server render path; forwarded
+  // opaquely to booking_started/booking_completed so time-to-book is joinable.
+  visitId?: string
   eventType: {
     id: string
     title: string
@@ -50,7 +53,7 @@ interface BookingWidgetProps {
   }
 }
 
-export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
+export default function BookingWidget({ eventType, host, visitId }: BookingWidgetProps) {
   const [step, setStep] = useState<"calendar" | "time" | "form" | "confirmed">("calendar")
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -133,6 +136,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
           bookerTimezone: timezone,
           bookerPhone: phone || undefined,
           answers: Object.keys(answers).length ? answers : undefined,
+          visitId,
         }),
       })
 

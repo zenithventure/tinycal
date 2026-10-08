@@ -83,6 +83,8 @@ export async function POST(req: Request) {
   const result = await createBooking({
     ...parsed.data,
     requireOwnerUserId: auth.user.id,
+    // #116: attribute the API-channel booking to its source channel.
+    source: "api",
   })
 
   let responseStatus: number

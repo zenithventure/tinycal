@@ -4,6 +4,7 @@ import { sendEmail, bookingCancelledEmail } from "@/lib/email"
 import { deleteGoogleCalendarEvent } from "@/lib/calendar/google"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
+import { track } from "@/lib/track"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 
@@ -20,6 +21,13 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
   await prisma.booking.update({
     where: { uid: params.uid },
     data: { status: "CANCELLED", cancelReason: reason },
+  })
+
+  // #116: booking_cancelled, with the host user in context. Fire-and-forget.
+  void track("booking_cancelled", {
+    userId: booking.userId,
+    bookingId: booking.id,
+    eventType: booking.eventTypeId,
   })
 
   // Delete calendar event

@@ -233,11 +233,64 @@ export async function refreshGoogleToken(
   }
 }
 
+/** Hard cap on events a single fetch may return (regression guard, #116).
+ *  A busy month can exceed one 250-event page — unpaginated reads would
+ *  silently miss conflicts (and a broken infinite nextPageToken loop would
+ *  hang a booking request). 5000 events ≫ any sane month window. */
+export const GOOGLE_FETCH_EVENT_CAP = 5000
+
 /**
- * Fetches events from a Google Calendar for a given date range.
+ * Fetch a single page of events (up to `maxResults`) and map it to the
+ * common {@link CalendarEvent} shape, dropping cancelled/all-day/free events.
+ * Shared by the primary path and the 401-retry path so both behave
+ * identically (#116 regression: the retry path used to return only page 1).
  *
- * Paginates through all results (up to 250 events per page) and automatically
- * retries once with a refreshed token if the API returns a 401 Unauthorized error.
+ * `calendar` is typed loosely on purpose: googleapis's `events.list` has a
+ * provider-specific params type and we only need `data.items` /
+ * `data.nextPageToken` from the response.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchGooglePageAsEvents(
+  calendar: any,
+  baseParams: {
+    calendarId: string
+    timeMin: string
+    timeMax: string
+    singleEvents: boolean
+    orderBy: string
+    maxResults: number
+  },
+  pageToken?: string
+): Promise<{ events: CalendarEvent[]; nextPageToken?: string }> {
+  const res = await calendar.events.list({ ...baseParams, pageToken })
+  const items: any[] = res.data.items || []
+  const events: CalendarEvent[] = []
+  for (const item of items) {
+    // Skip cancelled events
+    if (item.status === "cancelled") continue
+    // Skip all-day events with no specific time
+    if (!item.start?.dateTime || !item.end?.dateTime) continue
+    // Skip events marked as free/transparent
+    if (item.transparency === "transparent") continue
+    events.push({
+      start: new Date(item.start.dateTime),
+      end: new Date(item.end.dateTime),
+      calendarId: "primary",
+      provider: "GOOGLE",
+      summary: item.summary || undefined,
+    })
+  }
+  return { events, nextPageToken: res.data.nextPageToken || undefined }
+}
+
+/**
+ * Fetch events from a Google Calendar for a given date range.
+ *
+ * Paginates through all result pages (250 events/page) up to
+ * GOOGLE_FETCH_EVENT_CAP, and automatically retries once with a refreshed
+ * token if the API returns a 401 Unauthorized error. The 401-retry path
+ * continues pagination too — #116 regression fix: the old retry returned only
+ * the first 250 events, so a conflict on page 2+ was silently missed.
  *
  * Events are filtered to exclude:
  * - Cancelled events
@@ -273,48 +326,39 @@ export async function fetchGoogleCalendarEvents(
     refresh_token: refreshToken,
   })
 
+  const baseParams = {
+    calendarId: "primary",
+    timeMin: startDate.toISOString(),
+    timeMax: endDate.toISOString(),
+    singleEvents: true,
+    orderBy: "startTime",
+    maxResults: 250,
+  }
+
+  const paginate = async (calendar: ReturnType<typeof google.calendar>): Promise<CalendarEvent[]> => {
+    const allEvents: CalendarEvent[] = []
+    let pageToken: string | undefined
+    do {
+      const page = await fetchGooglePageAsEvents(calendar, baseParams, pageToken)
+      allEvents.push(...page.events)
+      // Hard cap: protects against both runaway calendars and a stale
+      // nextPageToken that would loop forever (see GOOGLE_FETCH_EVENT_CAP).
+      if (allEvents.length >= GOOGLE_FETCH_EVENT_CAP) break
+      pageToken = page.nextPageToken
+    } while (pageToken)
+    return allEvents
+  }
+
   const calendar = google.calendar({ version: "v3", auth: oauth2Client })
 
-  const allEvents: CalendarEvent[] = []
-  let pageToken: string | undefined
-
   try {
-    do {
-      const res = await calendar.events.list({
-        calendarId: "primary",
-        timeMin: startDate.toISOString(),
-        timeMax: endDate.toISOString(),
-        singleEvents: true,
-        orderBy: "startTime",
-        maxResults: 250,
-        pageToken,
-      })
-
-      const items = res.data.items || []
-
-      for (const item of items) {
-        // Skip cancelled events
-        if (item.status === "cancelled") continue
-        // Skip all-day events with no specific time
-        if (!item.start?.dateTime || !item.end?.dateTime) continue
-        // Skip events marked as free/transparent
-        if (item.transparency === "transparent") continue
-
-        allEvents.push({
-          start: new Date(item.start.dateTime),
-          end: new Date(item.end.dateTime),
-          calendarId: "primary",
-          provider: "GOOGLE",
-          summary: item.summary || undefined,
-        })
-      }
-
-      pageToken = res.data.nextPageToken || undefined
-    } while (pageToken)
-
-    return allEvents
+    return await paginate(calendar)
   } catch (error: any) {
-    // Handle token expiry - attempt one refresh
+    // Handle token expiry - attempt one refresh, then re-paginate from page 1
+    // (a refresh invalidates prior pagination state). The retry path
+    // historically returned only the first 250 events (#116 regression: a
+    // conflict on page 2+ went undetected); it now goes through the same
+    // bounded paginator as the primary path.
     if (error?.code === 401 && refreshToken) {
       try {
         const refreshed = await refreshGoogleToken(refreshToken)
@@ -322,33 +366,8 @@ export async function fetchGoogleCalendarEvents(
           access_token: refreshed.accessToken,
           refresh_token: refreshToken,
         })
-
         const retryCalendar = google.calendar({ version: "v3", auth: oauth2Client })
-        const res = await retryCalendar.events.list({
-          calendarId: "primary",
-          timeMin: startDate.toISOString(),
-          timeMax: endDate.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-          maxResults: 250,
-        })
-
-        const items = res.data.items || []
-        return items
-          .filter(
-            (item) =>
-              item.status !== "cancelled" &&
-              item.start?.dateTime &&
-              item.end?.dateTime &&
-              item.transparency !== "transparent"
-          )
-          .map((item) => ({
-            start: new Date(item.start!.dateTime!),
-            end: new Date(item.end!.dateTime!),
-            calendarId: "primary",
-            provider: "GOOGLE" as const,
-            summary: item.summary || undefined,
-          }))
+        return await paginate(retryCalendar)
       } catch (refreshError) {
         console.error("Google Calendar token refresh failed:", refreshError)
         return []

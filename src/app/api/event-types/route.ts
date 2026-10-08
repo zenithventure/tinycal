@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { generateSlug } from "@/lib/utils"
+import { track } from "@/lib/track"
 
 export async function GET() {
   const user = await getAuthenticatedUser()
@@ -100,6 +101,10 @@ export async function POST(req: Request) {
     },
     include: { questions: true },
   })
+
+  // #116 setup-completion metric: fires after the event type row is committed.
+  // Fire-and-forget (void) — setup UX must never depend on analytics.
+  void track("event_type_created", { userId, eventType: eventType.id })
 
   return NextResponse.json(eventType)
 }

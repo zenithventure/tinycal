@@ -15,6 +15,9 @@
  * - Handles token refresh transparently for both Google and Outlook
  * - Fails gracefully: if one calendar fails, events from others are still returned
  */
+// NOTE (#116): slot_checked / conflict_found instrumentation lives in
+// src/lib/bookings/conflict-check.ts (hasBookingConflict), which wraps this
+// module and has the merged busy list + booking context in hand.
 import prisma from "../prisma"
 import { fetchGoogleCalendarEvents, refreshGoogleToken } from "./google"
 import type { CalendarEvent } from "./google"
