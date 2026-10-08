@@ -5,6 +5,7 @@ import { sendSMS, bookingReminderSMS } from "@/lib/sms"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 import { isAuthorizedCronRequest } from "@/lib/cron-auth"
+import { isPro } from "@/lib/plan"
 
 // Called by cron job every 15 minutes
 // Sends reminders 1 hour before meetings
@@ -53,7 +54,7 @@ export async function GET(req: Request) {
     }
 
     // SMS reminder (if phone provided and user is Pro)
-    if (booking.bookerPhone && booking.eventType.user.plan === "PRO") {
+    if (booking.bookerPhone && isPro(booking.eventType.user)) {
       try {
         await sendSMS(
           booking.bookerPhone,

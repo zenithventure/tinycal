@@ -35,6 +35,7 @@ export default function EditEventTypePage() {
   const [et, setEt] = useState<any>(null)
   const [originalSlug, setOriginalSlug] = useState<string>("")
   const [userSlug, setUserSlug] = useState<string>("")
+  const [userPlan, setUserPlan] = useState<string>("")
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -48,11 +49,14 @@ export default function EditEventTypePage() {
       setEt(data)
       setOriginalSlug(data.slug ?? "")
     })
-    fetch("/api/user").then(r => r.json()).then(u => setUserSlug(u?.slug ?? ""))
+    fetch("/api/user").then(r => r.json()).then(u => { setUserSlug(u?.slug ?? ""); setUserPlan(u?.plan ?? "") })
     fetch("/api/availability/schedules").then(r => r.json()).then(setSchedules)
   }, [params.id])
 
-  const slugError = et?.slug != null ? validateSlug(et.slug) : null
+  // Display hint only; the API enforces this via requirePro() in src/lib/plan.ts.
+  const paymentLocked = userPlan !== "" && userPlan !== "PRO" && !et?.requirePayment
+
+  const slugError =et?.slug != null ? validateSlug(et.slug) : null
   const slugChanged = et != null && et.slug !== originalSlug
 
   async function handleSave() {
@@ -290,9 +294,14 @@ export default function EditEventTypePage() {
         <hr />
         <h3 className="font-semibold">Payment</h3>
         <div className="flex items-center gap-3">
-          <input type="checkbox" checked={et.requirePayment} onChange={e => setEt({ ...et, requirePayment: e.target.checked })}
+          <input type="checkbox" checked={et.requirePayment} disabled={paymentLocked} onChange={e => setEt({ ...et, requirePayment: e.target.checked })}
             className="rounded" id="requirePayment" />
           <label htmlFor="requirePayment" className="text-sm">Require payment before booking</label>
+          {paymentLocked && (
+            <a href="/dashboard/settings" className="text-xs text-blue-600 hover:underline">
+              Pro feature — upgrade to enable
+            </a>
+          )}
         </div>
         {et.requirePayment && (
           <div className="grid grid-cols-2 gap-4">

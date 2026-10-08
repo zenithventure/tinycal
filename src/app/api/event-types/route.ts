@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { generateSlug } from "@/lib/utils"
 import { track } from "@/lib/track"
+import { requirePro, enforceEventTypeLimit, planGateResponse } from "@/lib/plan"
 
 export async function GET() {
   const user = await getAuthenticatedUser()
@@ -41,13 +42,14 @@ export async function POST(req: Request) {
 
   const body = await req.json()
 
-  // Check plan limits
   const userId = user.id
-  if (user.plan === "FREE") {
-    const count = await prisma.eventType.count({ where: { userId } })
-    if (count >= 1) {
-      return NextResponse.json({ error: "Free plan limited to 1 event type. Upgrade to Pro." }, { status: 403 })
-    }
+  try {
+    await enforceEventTypeLimit(user)
+    if (body.requirePayment) requirePro(user, "paid_event_types")
+  } catch (e) {
+    const gated = planGateResponse(e)
+    if (gated) return gated
+    throw e
   }
 
   // Ownership check for the optional availability-schedule pointer — without
