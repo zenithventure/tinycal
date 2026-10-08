@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Plus, Trash2, Star, X } from "lucide-react"
+import { formatRuleLabel, ruleKind } from "@/lib/availability-rules"
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -46,14 +47,41 @@ function RulesEditor({
       {rules.map((r, i) => (
         <div key={i} className="flex items-center gap-2 text-sm">
           <select
-            value={r.dayOfWeek ?? 1}
-            onChange={e => update(i, { dayOfWeek: Number(e.target.value), date: undefined })}
+            aria-label="Rule type"
+            value={ruleKind(r)}
+            onChange={e =>
+              update(
+                i,
+                e.target.value === "date-specific"
+                  ? { dayOfWeek: undefined, date: new Date().toISOString().slice(0, 10) }
+                  : { dayOfWeek: 1, date: undefined }
+              )
+            }
             className="border rounded px-2 py-1.5 bg-white"
           >
-            {DAYS.map((d, idx) => (
-              <option key={idx} value={idx}>{d}</option>
-            ))}
+            <option value="weekly">Weekly</option>
+            <option value="date-specific">Specific date</option>
           </select>
+          {r.date ? (
+            <input
+              type="date"
+              aria-label="Date"
+              value={r.date.slice(0, 10)}
+              onChange={e => update(i, { date: e.target.value })}
+              className="border rounded px-2 py-1.5"
+            />
+          ) : (
+            <select
+              aria-label="Day of week"
+              value={r.dayOfWeek ?? 1}
+              onChange={e => update(i, { dayOfWeek: Number(e.target.value) })}
+              className="border rounded px-2 py-1.5 bg-white"
+            >
+              {DAYS.map((d, idx) => (
+                <option key={idx} value={idx}>{d}</option>
+              ))}
+            </select>
+          )}
           <input
             type="time"
             value={r.startTime}
@@ -164,7 +192,7 @@ export default function SchedulesPage() {
     setEditingId(schedule.id)
     setDraftRules(schedule.rules.map(r => ({
       dayOfWeek: r.dayOfWeek,
-      date: r.date,
+      date: r.date ? r.date.slice(0, 10) : undefined,
       startTime: r.startTime,
       endTime: r.endTime,
       enabled: r.enabled,
@@ -320,9 +348,7 @@ export default function SchedulesPage() {
                   {schedule.rules.map((rule, idx) => (
                     <div key={idx} className="p-3 flex items-center justify-between">
                       <span className="font-medium">
-                        {rule.dayOfWeek !== undefined && rule.dayOfWeek !== null
-                          ? DAYS[rule.dayOfWeek]
-                          : "Custom Date"}
+                        {formatRuleLabel(rule)}
                       </span>
                       <span className="text-gray-600">
                         {rule.startTime} — {rule.endTime}
@@ -338,7 +364,8 @@ export default function SchedulesPage() {
 
       <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
         <strong>Tip:</strong> Link a schedule to an event type in the event-type editor.
-        While a schedule is linked, it replaces the legacy availability for that event type.
+        While a schedule is linked, it replaces your default schedule for that event type.
+        Date-specific rules override the weekly rules for that day.
       </div>
     </div>
   )

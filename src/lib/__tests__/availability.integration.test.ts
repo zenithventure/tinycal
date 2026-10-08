@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import { formatInTimeZone } from "date-fns-tz"
 import { getAvailableSlots } from "@/lib/availability"
 
 // ─── Mock Prisma ───
@@ -98,19 +99,6 @@ function makeRule(scheduleId: string, overrides: Record<string, any> = {}) {
   }
 }
 
-function makeLegacyRule(overrides: Record<string, any> = {}) {
-  return {
-    id: "legacy-1",
-    userId: USER_ID,
-    dayOfWeek: 1,
-    date: null,
-    startTime: "08:00",
-    endTime: "09:00",
-    enabled: true,
-    ...overrides,
-  }
-}
-
 // ─── Helpers ───
 
 function setupMocks(opts: {
@@ -118,7 +106,6 @@ function setupMocks(opts: {
   eventType?: typeof baseEventType
   eventScheduleRules?: any[]
   defaultScheduleRules?: any[]
-  legacyRules?: any[]
 }) {
   const user = opts.user ?? baseUser
   const eventType = opts.eventType ?? baseEventType
@@ -144,7 +131,11 @@ function setupMocks(opts: {
     return Promise.resolve([])
   })
 
-  mockAvailabilityFindMany.mockResolvedValue(opts.legacyRules ?? [])
+  // The legacy `Availability` table must never be read (#96). Rows here would
+  // change the expected slots if any code path still consulted it.
+  mockAvailabilityFindMany.mockResolvedValue([
+    { id: "legacy-1", userId: USER_ID, dayOfWeek: 1, date: null, startTime: "08:00", endTime: "09:00", enabled: true },
+  ])
 }
 
 // ─── Tests ───
@@ -160,12 +151,11 @@ describe("Availability schedule resolution (fallback chain)", () => {
       user: { ...baseUser, defaultAvailabilityScheduleId: DEFAULT_SCHEDULE_ID },
       eventScheduleRules: [makeRule(EVENT_SCHEDULE_ID, { startTime: "10:00", endTime: "11:00" })],
       defaultScheduleRules: [makeRule(DEFAULT_SCHEDULE_ID, { startTime: "14:00", endTime: "15:00" })],
-      legacyRules: [makeLegacyRule()],
     })
 
     const slots = await getAvailableSlots(defaultOptions)
 
-    // Should get slots from event schedule (10:00-11:00), not default (14:00-15:00) or legacy (08:00-09:00)
+    // Should get slots from event schedule (10:00-11:00), not default (14:00-15:00)
     expect(slots.length).toBeGreaterThan(0)
     expect(slots.every((s) => s.start.getUTCHours() === 10)).toBe(true)
     // Should NOT have queried legacy availability
@@ -177,7 +167,6 @@ describe("Availability schedule resolution (fallback chain)", () => {
       eventType: { ...baseEventType, availabilityScheduleId: null },
       user: { ...baseUser, defaultAvailabilityScheduleId: DEFAULT_SCHEDULE_ID },
       defaultScheduleRules: [makeRule(DEFAULT_SCHEDULE_ID, { startTime: "14:00", endTime: "15:00" })],
-      legacyRules: [makeLegacyRule()],
     })
 
     const slots = await getAvailableSlots(defaultOptions)
@@ -187,18 +176,16 @@ describe("Availability schedule resolution (fallback chain)", () => {
     expect(mockAvailabilityFindMany).not.toHaveBeenCalled()
   })
 
-  it("falls back to legacy rules when no schedules exist", async () => {
+  it("does not fall back to legacy Availability rows when no schedules exist", async () => {
     setupMocks({
       eventType: { ...baseEventType, availabilityScheduleId: null },
       user: { ...baseUser, defaultAvailabilityScheduleId: null },
-      legacyRules: [makeLegacyRule({ startTime: "08:00", endTime: "09:00" })],
     })
 
     const slots = await getAvailableSlots(defaultOptions)
 
-    expect(slots.length).toBeGreaterThan(0)
-    expect(slots.every((s) => s.start.getUTCHours() === 8)).toBe(true)
-    expect(mockAvailabilityFindMany).toHaveBeenCalled()
+    expect(slots).toEqual([])
+    expect(mockAvailabilityFindMany).not.toHaveBeenCalled()
   })
 
   it("falls back to user default when event schedule has no enabled rules", async () => {
@@ -215,30 +202,59 @@ describe("Availability schedule resolution (fallback chain)", () => {
     expect(slots.every((s) => s.start.getUTCHours() === 14)).toBe(true)
   })
 
-  it("falls back to legacy when both schedules have no rules", async () => {
+  it("returns no slots (and ignores legacy rows) when both schedules have no rules", async () => {
     setupMocks({
       eventType: { ...baseEventType, availabilityScheduleId: EVENT_SCHEDULE_ID },
       user: { ...baseUser, defaultAvailabilityScheduleId: DEFAULT_SCHEDULE_ID },
       eventScheduleRules: [],
       defaultScheduleRules: [],
-      legacyRules: [makeLegacyRule({ startTime: "08:00", endTime: "09:00" })],
-    })
-
-    const slots = await getAvailableSlots(defaultOptions)
-
-    expect(slots.length).toBeGreaterThan(0)
-    expect(slots.every((s) => s.start.getUTCHours() === 8)).toBe(true)
-  })
-
-  it("returns no slots when no availability rules exist anywhere", async () => {
-    setupMocks({
-      eventType: { ...baseEventType, availabilityScheduleId: null },
-      user: { ...baseUser, defaultAvailabilityScheduleId: null },
-      legacyRules: [],
     })
 
     const slots = await getAvailableSlots(defaultOptions)
 
     expect(slots).toEqual([])
+    expect(mockAvailabilityFindMany).not.toHaveBeenCalled()
   })
+})
+
+describe("Date-specific rules are matched by stored calendar date (#75/#76)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // Rule stored as UTC midnight of futureTuesday's calendar date.
+  const dateRule = () =>
+    makeRule(DEFAULT_SCHEDULE_ID, {
+      dayOfWeek: null,
+      date: new Date(futureTuesday),
+      startTime: "13:00",
+      endTime: "14:00",
+    })
+
+  it.each(["America/Los_Angeles", "America/New_York", "UTC", "Asia/Tokyo"])(
+    "applies a date rule on its own day for a host in %s",
+    async (tz) => {
+      setupMocks({
+        user: { ...baseUser, timezone: tz, defaultAvailabilityScheduleId: DEFAULT_SCHEDULE_ID },
+        defaultScheduleRules: [
+          // A weekly Tuesday rule that the date rule must override on that exact day.
+          makeRule(DEFAULT_SCHEDULE_ID, { dayOfWeek: 2, startTime: "09:00", endTime: "10:00" }),
+          dateRule(),
+        ],
+      })
+
+      const dayStr = futureTuesday.toISOString().slice(0, 10)
+      const slots = await getAvailableSlots({
+        ...defaultOptions,
+        timezone: tz,
+        // Wide window so the host-timezone day is fully covered.
+        startDate: new Date(futureTuesday.getTime() - 24 * 60 * 60 * 1000),
+        endDate: new Date(futureTuesday.getTime() + 48 * 60 * 60 * 1000),
+      })
+
+      const onTargetDay = slots.filter((s) => formatInTimeZone(s.start, tz, "yyyy-MM-dd") === dayStr)
+      // Date rule wins: 13:00 and 13:30 host-local, and no 09:00 weekly slots.
+      expect(onTargetDay.map((s) => formatInTimeZone(s.start, tz, "HH:mm"))).toEqual(["13:00", "13:30"])
+    }
+  )
 })
