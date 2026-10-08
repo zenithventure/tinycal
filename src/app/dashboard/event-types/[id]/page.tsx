@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, Save, X, AlertCircle, Users } from "lucide-react"
 import Link from "next/link"
+import { activeScheduleLabel } from "@/lib/availability-rules"
 
 interface CoHost {
   id: string
@@ -243,6 +244,12 @@ export default function EditEventTypePage() {
           </select>
           <p className="text-xs text-gray-500 mt-1">
             Event type schedules override user defaults.
+          </p>
+          <p className="text-xs text-gray-700 mt-1" data-testid="active-schedule">
+            Active schedule: {activeScheduleLabel(
+              schedules.find(s => s.id === et.availabilityScheduleId) ?? schedules.find(s => s.isDefault),
+              Boolean(et.availabilityScheduleId && schedules.some(s => s.id === et.availabilityScheduleId))
+            )}
           </p>
         </div>
 

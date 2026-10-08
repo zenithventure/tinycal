@@ -2,6 +2,7 @@ import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import prisma from '@/lib/prisma'
 import { track } from '@/lib/track'
+import { ensureDefaultSchedule } from '@/lib/availability-schedule'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -53,16 +54,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // Fire-and-forget: sign-in must never depend on analytics.
           void track("user_signed_up", { userId: newUser.id })
 
-          // Set up default Mon-Fri 9am-5pm availability
-          await prisma.availability.createMany({
-            data: [1, 2, 3, 4, 5].map((day) => ({
-              userId: newUser.id,
-              dayOfWeek: day,
-              startTime: "09:00",
-              endTime: "17:00",
-              enabled: true,
-            })),
-          })
+          // Set up default Mon-Fri 9am-5pm availability schedule
+          await ensureDefaultSchedule(newUser.id)
         }
         token.userId = user.id
       }

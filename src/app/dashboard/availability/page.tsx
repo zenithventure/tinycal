@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Save } from "lucide-react"
+import { activeScheduleLabel } from "@/lib/availability-rules"
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -14,11 +16,26 @@ interface Rule {
 
 export default function AvailabilityPage() {
   const [rules, setRules] = useState<Rule[]>([])
+  // Rules this page can't edit (date-specific rules, extra windows on a day).
+  // PUT replaces the whole rule set, so they're sent back untouched on save.
+  const [preserved, setPreserved] = useState<any[]>([])
+  const [scheduleLabel, setScheduleLabel] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
+    fetch("/api/availability/schedules").then(r => r.json()).then((schedules) => {
+      const def = Array.isArray(schedules) ? schedules.find((s: any) => s.isDefault) : null
+      setScheduleLabel(activeScheduleLabel(def))
+    }).catch(() => {})
     fetch("/api/availability").then(r => r.json()).then((data) => {
+      const seenDays = new Set<number>()
+      setPreserved(data.filter((r: any) => {
+        if (r.date) return true
+        if (seenDays.has(r.dayOfWeek)) return true
+        seenDays.add(r.dayOfWeek)
+        return false
+      }).map((r: any) => ({ ...r, date: r.date ? r.date.slice(0, 10) : undefined })))
       if (data.length === 0) {
         // Default: Mon-Fri 9-5
         setRules(DAYS.map((_, i) => ({
@@ -30,7 +47,7 @@ export default function AvailabilityPage() {
       } else {
         // Group by day
         const byDay = DAYS.map((_, i) => {
-          const existing = data.find((r: any) => r.dayOfWeek === i)
+          const existing = data.find((r: any) => r.dayOfWeek === i && !r.date)
           return existing || { dayOfWeek: i, startTime: "09:00", endTime: "17:00", enabled: false }
         })
         setRules(byDay)
@@ -43,7 +60,12 @@ export default function AvailabilityPage() {
     await fetch("/api/availability", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rules: rules.filter(r => r.enabled) }),
+      body: JSON.stringify({
+        rules: [
+          ...rules.filter(r => r.enabled),
+          ...preserved.map(({ id: _id, availabilityScheduleId: _sid, ...r }) => r),
+        ],
+      }),
     })
     setSaving(false)
     setSaved(true)
@@ -59,6 +81,15 @@ export default function AvailabilityPage() {
           <Save className="w-4 h-4" /> {saving ? "Saving..." : saved ? "Saved ✓" : "Save"}
         </button>
       </div>
+
+      {scheduleLabel && (
+        <p className="text-sm text-gray-600 mb-4" data-testid="active-schedule">
+          Editing schedule: <strong>{scheduleLabel}</strong>.{" "}
+          <Link href="/dashboard/schedules" className="text-blue-600 hover:text-blue-700">
+            Manage schedules and date-specific hours
+          </Link>
+        </p>
+      )}
 
       <div className="bg-white border rounded-xl divide-y">
         {rules.map((rule, i) => (

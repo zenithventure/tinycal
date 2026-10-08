@@ -2,6 +2,19 @@
   "_readme": "HOW TO ADD A RELEASE: append ONE object to the top of `entries` (newest first), one block per release. Fields: id (unique slug, e.g. '2026-10-06-hardening'), date (YYYY-MM-DD), title, description, type (new | fixed | changed | breaking; the release headline type), tags (optional string[]), changes (optional sub-entries: [{ type, text }]). Nothing else needs editing: /changelog and the dashboard 'What's new' dot read this file. Keys starting with '_' are ignored.",
   "entries": [
     {
+      "id": "2026-10-08-availability",
+      "date": "2026-10-08",
+      "title": "Availability: reliable schedules",
+      "description": "Schedules now work the way they should: date-specific rules no longer shift to the previous day, and the dashboard shows which schedule is actually active for each event type.",
+      "type": "new",
+      "tags": ["availability", "dashboard"],
+      "changes": [
+        { "type": "new", "text": "Add date-specific schedule rules (e.g. a one-off block on a particular date) in the dashboard, alongside weekly rules." },
+        { "type": "fixed", "text": "Fixed a bug where date-specific availability rules could shift to the previous day depending on your location." },
+        { "type": "new", "text": "The availability and event-type pages now show which schedule is the active default for each event type." }
+      ]
+    },
+    {
       "id": "2026-10-07-v1.0.5",
       "date": "2026-10-08",
       "title": "Booking analytics + conflict fix",

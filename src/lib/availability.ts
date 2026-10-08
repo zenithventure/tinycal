@@ -1,6 +1,7 @@
 import { addMinutes, isAfter, isBefore } from "date-fns"
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import prisma from "./prisma"
+import { ruleDateToIso } from "./availability-schedule"
 import { getConflictingEvents } from "./calendar/conflict-detection"
 
 interface TimeSlot {
@@ -48,8 +49,7 @@ export async function resolveAvailabilityRules(
     if (rules.length > 0) return rules
   }
 
-  // 3. Legacy Availability records
-  return prisma.availability.findMany({ where: { userId, enabled: true } })
+  return []
 }
 
 export async function getAvailableSlots(options: AvailabilityOptions): Promise<TimeSlot[]> {
@@ -63,10 +63,7 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
 
   if (!user || !eventType) return []
 
-  // Resolve availability rules via fallback chain:
-  // 1. Event type's linked schedule
-  // 2. User's default schedule
-  // 3. Legacy Availability records
+  // Resolve availability rules: event type's linked schedule → user's default schedule.
   const availabilityRules = await resolveAvailabilityRules(userId, eventType)
 
 
@@ -133,9 +130,10 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
       continue
     }
 
-    const dateOverride = availabilityRules.find(
-      (r) => r.date && formatInTimeZone(r.date, tz, "yyyy-MM-dd") === cursor
-    )
+    // Date rules are stored as UTC-midnight; compare the stored calendar date, not
+    // the instant converted into the host's timezone (which lands on the previous
+    // day west of UTC).
+    const dateOverride = availabilityRules.find((r) => r.date && ruleDateToIso(r.date) === cursor)
     const dayRules = dateOverride
       ? [dateOverride]
       : availabilityRules.filter((r) => r.dayOfWeek === dayOfWeek && !r.date)
@@ -176,17 +174,4 @@ function nextDay(yyyyMmDd: string): string {
   const [y, m, d] = yyyyMmDd.split("-").map(Number)
   const next = new Date(Date.UTC(y, m - 1, d + 1))
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`
-}
-
-export async function initDefaultAvailability(userId: string) {
-  const days = [1, 2, 3, 4, 5] // Mon-Fri
-  await prisma.availability.createMany({
-    data: days.map((day) => ({
-      userId,
-      dayOfWeek: day,
-      startTime: "09:00",
-      endTime: "17:00",
-      enabled: true,
-    })),
-  })
 }

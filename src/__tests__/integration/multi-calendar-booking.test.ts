@@ -15,7 +15,7 @@ const mockCalendarConnectionFindFirst = vi.fn()
 const mockCalendarConnectionCreate = vi.fn()
 const mockUserFindUnique = vi.fn()
 const mockEventTypeFindUnique = vi.fn()
-const mockAvailabilityFindMany = vi.fn()
+const mockAvailabilityRuleFindMany = vi.fn()
 const mockBookingFindMany = vi.fn()
 
 vi.mock("@/lib/prisma", () => ({
@@ -36,8 +36,8 @@ vi.mock("@/lib/prisma", () => ({
     eventType: {
       findUnique: (...args: any[]) => mockEventTypeFindUnique(...args),
     },
-    availability: {
-      findMany: (...args: any[]) => mockAvailabilityFindMany(...args),
+    availabilityRule: {
+      findMany: (...args: any[]) => mockAvailabilityRuleFindMany(...args),
     },
     booking: {
       findMany: (...args: any[]) => mockBookingFindMany(...args),
@@ -75,6 +75,7 @@ const originalFetch = global.fetch
 
 const TEST_USER_ID = "user-integration-1"
 const TEST_EVENT_TYPE_ID = "event-type-1"
+const TEST_SCHEDULE_ID = "schedule-integration-1"
 
 // Fixed test dates. The clock is pinned (see beforeEach) so these stay "in the
 // future" relative to now; otherwise slots on a real-world past date are
@@ -100,6 +101,7 @@ function makeTestEventType(overrides = {}) {
     userId: TEST_USER_ID,
     title: "30 Min Meeting",
     slug: "30min",
+    availabilityScheduleId: TEST_SCHEDULE_ID,
     duration: 30,
     bufferBefore: 0,
     bufferAfter: 0,
@@ -135,7 +137,7 @@ function makeAvailabilityRules() {
   // Return rules for all 7 days to avoid timezone-dependent day-of-week mismatches
   return Array.from({ length: 7 }, (_, i) => ({
     id: `avail-${i}`,
-    userId: TEST_USER_ID,
+    availabilityScheduleId: TEST_SCHEDULE_ID,
     dayOfWeek: i,
     date: null,
     startTime: "08:00",
@@ -328,7 +330,7 @@ describe("Multi-Calendar Booking Flow - Integration Tests", () => {
       // Setup user and event type mocks
       mockUserFindUnique.mockResolvedValue(makeTestUser())
       mockEventTypeFindUnique.mockResolvedValue(makeTestEventType())
-      mockAvailabilityFindMany.mockResolvedValue(makeAvailabilityRules())
+      mockAvailabilityRuleFindMany.mockResolvedValue(makeAvailabilityRules())
       mockBookingFindMany.mockResolvedValue([])
 
       // Conflict detection: return a busy event at 10:00-10:30
@@ -645,7 +647,7 @@ describe("Multi-Calendar Booking Flow - Integration Tests", () => {
 
       mockUserFindUnique.mockResolvedValue(user)
       mockEventTypeFindUnique.mockResolvedValue(eventType)
-      mockAvailabilityFindMany.mockResolvedValue(makeAvailabilityRules())
+      mockAvailabilityRuleFindMany.mockResolvedValue(makeAvailabilityRules())
       mockBookingFindMany.mockResolvedValue([])
 
       // 2 calendars with checkConflicts=true
@@ -704,7 +706,7 @@ describe("Multi-Calendar Booking Flow - Integration Tests", () => {
     it("availability is open when no calendar events exist", async () => {
       mockUserFindUnique.mockResolvedValue(makeTestUser())
       mockEventTypeFindUnique.mockResolvedValue(makeTestEventType())
-      mockAvailabilityFindMany.mockResolvedValue(makeAvailabilityRules())
+      mockAvailabilityRuleFindMany.mockResolvedValue(makeAvailabilityRules())
       mockBookingFindMany.mockResolvedValue([])
 
       mockCalendarConnectionFindMany.mockResolvedValue([
@@ -728,7 +730,7 @@ describe("Multi-Calendar Booking Flow - Integration Tests", () => {
     it("existing bookings are combined with calendar events for conflict detection", async () => {
       mockUserFindUnique.mockResolvedValue(makeTestUser())
       mockEventTypeFindUnique.mockResolvedValue(makeTestEventType())
-      mockAvailabilityFindMany.mockResolvedValue(makeAvailabilityRules())
+      mockAvailabilityRuleFindMany.mockResolvedValue(makeAvailabilityRules())
 
       // Existing booking at 09:00-09:30
       mockBookingFindMany.mockResolvedValue([

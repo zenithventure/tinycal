@@ -1,44 +1,49 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { validateRules } from "@/lib/availability-validation"
+import { ensureDefaultSchedule, normalizeRule, resolveActiveSchedule } from "@/lib/availability-schedule"
+
+// Backward-compatible view over the user's default AvailabilitySchedule: same
+// rule-array shape the legacy endpoint returned, now backed by the schedule model.
+
+const ORDER = [{ dayOfWeek: "asc" as const }, { startTime: "asc" as const }]
 
 export async function GET() {
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const availability = await prisma.availability.findMany({
-    where: { userId: user.id },
-    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  const { schedule } = await resolveActiveSchedule(user.id)
+  if (!schedule) return NextResponse.json([])
+
+  const rules = await prisma.availabilityRule.findMany({
+    where: { availabilityScheduleId: schedule.id },
+    orderBy: ORDER,
   })
-  return NextResponse.json(availability)
+  return NextResponse.json(rules)
 }
 
 export async function PUT(req: Request) {
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const userId = user.id
   const { rules } = await req.json()
+  const err = validateRules(rules ?? [])
+  if (err) return NextResponse.json({ error: err }, { status: 400 })
 
-  // Delete existing and recreate
-  await prisma.availability.deleteMany({ where: { userId } })
+  const schedule = await ensureDefaultSchedule(user.id)
 
-  if (rules?.length) {
-    await prisma.availability.createMany({
-      data: rules.map((r: any) => ({
-        userId,
-        dayOfWeek: r.dayOfWeek,
-        date: r.date ? new Date(r.date) : null,
-        startTime: r.startTime,
-        endTime: r.endTime,
-        enabled: r.enabled ?? true,
-      })),
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.availabilityRule.deleteMany({ where: { availabilityScheduleId: schedule.id } })
+    if (rules?.length) {
+      await tx.availabilityRule.createMany({
+        data: rules.map((r: any) => ({ ...normalizeRule(r), availabilityScheduleId: schedule.id })),
+      })
+    }
+    return tx.availabilityRule.findMany({
+      where: { availabilityScheduleId: schedule.id },
+      orderBy: ORDER,
     })
-  }
-
-  const updated = await prisma.availability.findMany({
-    where: { userId },
-    orderBy: [{ dayOfWeek: "asc" }],
   })
   return NextResponse.json(updated)
 }
