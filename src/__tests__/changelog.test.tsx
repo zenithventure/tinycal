@@ -14,7 +14,8 @@ describe("changelog data", () => {
     const entry = changelogEntries.find((e) => e.title === "1.0 Hardening")
     expect(entry?.date).toBe("2026-10-06")
     expect(entry?.changes?.map((c) => c.type)).toEqual(["new", "fixed", "breaking", "fixed"])
-    expect(latestEntryDate()).toBe("2026-10-06")
+    const newest = [...changelogEntries].sort((a, b) => (a.date < b.date ? 1 : -1))[0]
+    expect(latestEntryDate()).toBe(newest.date)
   })
 
   it("has unique ids and valid dates", () => {
