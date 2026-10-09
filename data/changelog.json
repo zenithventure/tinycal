@@ -2,6 +2,18 @@
   "_readme": "HOW TO ADD A RELEASE: append ONE object to the top of `entries` (newest first), one block per release. Fields: id (unique slug, e.g. '2026-10-06-hardening'), date (YYYY-MM-DD), title, description, type (new | fixed | changed | breaking; the release headline type), tags (optional string[]), changes (optional sub-entries: [{ type, text }]). Nothing else needs editing: /changelog and the dashboard 'What's new' dot read this file. Keys starting with '_' are ignored.",
   "entries": [
     {
+      "id": "2026-10-08-plan-gating",
+      "date": "2026-10-08",
+      "title": "Plans & upgrades",
+      "description": "We've made Pro features clearer. Free plans now show a helpful 'Upgrade to Pro' prompt the moment you try a Pro feature, and Pro features are applied consistently everywhere.",
+      "type": "new",
+      "tags": ["plans", "upgrades"],
+      "changes": [
+        { "type": "new", "text": "When a Free plan reaches its limit or uses a Pro feature, you now get a clear 'Upgrade to Pro' prompt instead of a confusing error." },
+        { "type": "fixed", "text": "Pro features (like unlimited event types and paid events) now behave consistently across the app and the API." }
+      ]
+    },
+    {
       "id": "2026-10-08-availability",
       "date": "2026-10-08",
       "title": "Availability: reliable schedules",
