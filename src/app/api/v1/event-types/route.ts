@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
+import { enforceEventTypeLimit, planGateResponse } from "@/lib/plan"
 import { authenticateApiKey, isAuthFailure, applyAuthResponseHeaders } from "@/lib/api-keys/auth"
 
 export async function GET(req: Request) {
@@ -21,6 +22,14 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const auth = await authenticateApiKey(req)
   if (isAuthFailure(auth)) return auth
+
+  try {
+    await enforceEventTypeLimit(auth.user)
+  } catch (e) {
+    const gated = planGateResponse(e)
+    if (gated) return gated
+    throw e
+  }
 
   const body = await req.json()
   const eventType = await prisma.eventType.create({

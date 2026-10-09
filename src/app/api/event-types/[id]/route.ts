@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { requirePro, planGateResponse } from "@/lib/plan"
 
 // URL-safe slug. Lowercase letters, digits, hyphens. No leading/trailing
 // hyphen. 1–80 chars. Mirrors what the public booking-page route can resolve.
@@ -53,7 +54,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // co-host picker.
   const existing = await prisma.eventType.findUnique({
     where: { id: params.id },
-    select: { userId: true },
+    select: { userId: true, requirePayment: true },
   })
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (existing.userId !== user.id) {
@@ -61,6 +62,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const body = await req.json()
+
+  // Turning payment collection on is Pro-only. A downgraded user whose event
+  // type already has it on can still edit other fields (the editor re-sends it).
+  if (body.requirePayment === true && !existing.requirePayment) {
+    try {
+      requirePro(user, "paid_event_types")
+    } catch (e) {
+      const gated = planGateResponse(e)
+      if (gated) return gated
+      throw e
+    }
+  }
 
   // If collectiveMembers were sent, reject any IDs that don't resolve to a
   // real user — guards against typos or stale references in the payload.
