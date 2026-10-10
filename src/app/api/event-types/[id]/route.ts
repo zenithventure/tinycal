@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { isValidCents } from "@/lib/money"
 import { requirePro, planGateResponse } from "@/lib/plan"
 
 // URL-safe slug. Lowercase letters, digits, hyphens. No leading/trailing
@@ -62,6 +63,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const body = await req.json()
+
+  if (body.price !== undefined && body.price !== null && !isValidCents(body.price)) {
+    return NextResponse.json(
+      { error: "price must be a non-negative integer number of cents (e.g. 1999 for 19.99)" },
+      { status: 400 }
+    )
+  }
 
   // Turning payment collection on is Pro-only. A downgraded user whose event
   // type already has it on can still edit other fields (the editor re-sends it).
