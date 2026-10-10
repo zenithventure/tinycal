@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { generateSlug } from "@/lib/utils"
 import { track } from "@/lib/track"
+import { collectiveMembershipsInclude, withCollectiveMembers } from "@/lib/collective"
 import { requirePro, enforceEventTypeLimit, planGateResponse } from "@/lib/plan"
 
 export async function GET() {
@@ -18,10 +19,11 @@ export async function GET() {
     where: {
       OR: [
         { userId: user.id },
-        { isCollective: true, collectiveMembers: { has: user.id } },
+        { isCollective: true, collectiveMemberships: { some: { userId: user.id } } },
       ],
     },
     include: {
+      ...collectiveMembershipsInclude,
       questions: { orderBy: { order: "asc" } },
       _count: { select: { bookings: true } },
       user: { select: { id: true, name: true, email: true, slug: true } },
@@ -30,7 +32,7 @@ export async function GET() {
   })
 
   const decorated = eventTypes.map((et) => ({
-    ...et,
+    ...withCollectiveMembers(et),
     viewerRole: et.userId === user.id ? ("OWNER" as const) : ("CO_HOST" as const),
   }))
   return NextResponse.json(decorated)
@@ -89,7 +91,9 @@ export async function POST(req: Request) {
       price: body.price,
       currency: body.currency || "usd",
       isCollective: body.isCollective || false,
-      collectiveMembers: body.collectiveMembers || [],
+      collectiveMemberships: Array.isArray(body.collectiveMembers) && body.collectiveMembers.length
+        ? { create: Array.from(new Set<string>(body.collectiveMembers)).map((userId) => ({ userId })) }
+        : undefined,
       availabilityScheduleId: body.availabilityScheduleId,
       questions: body.questions?.length ? {
         create: body.questions.map((q: any, i: number) => ({
@@ -101,12 +105,12 @@ export async function POST(req: Request) {
         })),
       } : undefined,
     },
-    include: { questions: true },
+    include: { questions: true, ...collectiveMembershipsInclude },
   })
 
   // #116 setup-completion metric: fires after the event type row is committed.
   // Fire-and-forget (void) — setup UX must never depend on analytics.
   void track("event_type_created", { userId, eventType: eventType.id })
 
-  return NextResponse.json(eventType)
+  return NextResponse.json(withCollectiveMembers(eventType))
 }

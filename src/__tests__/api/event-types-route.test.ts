@@ -55,7 +55,7 @@ describe("GET /api/event-types", () => {
     expect(arg.where).toEqual({
       OR: [
         { userId: "cohost-1" },
-        { isCollective: true, collectiveMembers: { has: "cohost-1" } },
+        { isCollective: true, collectiveMemberships: { some: { userId: "cohost-1" } } },
       ],
     })
     // Owner summary needed for the dashboard to render co-hosted events correctly.
@@ -67,8 +67,8 @@ describe("GET /api/event-types", () => {
   it("tags each row with viewerRole=OWNER vs CO_HOST based on userId", async () => {
     mockGetAuthenticatedUser.mockResolvedValueOnce(COHOST)
     mockEventTypeFindMany.mockResolvedValueOnce([
-      { id: "et-mine", userId: "cohost-1", title: "My own", isCollective: false, collectiveMembers: [] },
-      { id: "et-shared", userId: "owner-1", title: "Discovery call", isCollective: true, collectiveMembers: ["cohost-1"] },
+      { id: "et-mine", userId: "cohost-1", title: "My own", isCollective: false, collectiveMemberships: [] },
+      { id: "et-shared", userId: "owner-1", title: "Discovery call", isCollective: true, collectiveMemberships: [{ userId: "cohost-1" }] },
     ])
 
     const res = await GET()
@@ -83,7 +83,7 @@ describe("POST /api/event-types", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetAuthenticatedUser.mockResolvedValue(OWNER)
-    mockEventTypeCreate.mockResolvedValue({ id: "new" })
+    mockEventTypeCreate.mockResolvedValue({ id: "new", collectiveMemberships: [] })
   })
 
   it("creates an event type for an authenticated user", async () => {
@@ -95,5 +95,21 @@ describe("POST /api/event-types", () => {
     )
     expect(res.status).toBe(200)
     expect(mockEventTypeCreate).toHaveBeenCalled()
+  })
+
+  it("creates co-host memberships through the join table (deduped)", async () => {
+    await POST(
+      new Request("http://x", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Panel",
+          isCollective: true,
+          collectiveMembers: ["a", "b", "a"],
+        }),
+      })
+    )
+    const data = mockEventTypeCreate.mock.calls[0][0].data
+    expect(data.collectiveMemberships).toEqual({ create: [{ userId: "a" }, { userId: "b" }] })
+    expect(data).not.toHaveProperty("collectiveMembers")
   })
 })

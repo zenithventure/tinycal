@@ -2,6 +2,19 @@
   "_readme": "HOW TO ADD A RELEASE: append ONE object to the top of `entries` (newest first), one block per release. Fields: id (unique slug, e.g. '2026-10-06-hardening'), date (YYYY-MM-DD), title, description, type (new | fixed | changed | breaking; the release headline type), tags (optional string[]), changes (optional sub-entries: [{ type, text }]). Nothing else needs editing: /changelog and the dashboard 'What's new' dot read this file. Keys starting with '_' are ignored.",
   "entries": [
     {
+      "id": "2026-10-09-collective-cohosts",
+      "date": "2026-10-09",
+      "title": "Collective events: co-hosts stay in sync",
+      "description": "Co-hosts on collective events are now tracked reliably. If a co-host's account is deleted, they are removed from the event automatically instead of leaving a broken reference behind.",
+      "type": "fixed",
+      "tags": ["collective", "bookings"],
+      "changes": [
+        { "type": "fixed", "text": "What changed: co-hosts of a collective event are now stored as real links to their accounts. When a co-host's account is deleted they are automatically removed from the event; the event, its owner and its bookings are unaffected." },
+        { "type": "changed", "text": "Who is affected: owners of collective event types, and anyone who is a co-host on one. Existing co-hosts were migrated automatically; any that no longer had an account were dropped." },
+        { "type": "changed", "text": "What to do: nothing. If a co-host leaves, add a replacement from the event type's co-host picker." }
+      ]
+    },
+    {
       "id": "2026-10-08-plan-gating",
       "date": "2026-10-08",
       "title": "Plans & upgrades",

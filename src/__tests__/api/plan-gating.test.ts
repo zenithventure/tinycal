@@ -50,9 +50,9 @@ const ctx = { params: { id: "et-1" } }
 beforeEach(() => {
   vi.clearAllMocks()
   mockEventTypeCount.mockResolvedValue(0)
-  mockEventTypeCreate.mockResolvedValue({ id: "new" })
+  mockEventTypeCreate.mockResolvedValue({ id: "new", collectiveMemberships: [] })
   mockEventTypeFindUnique.mockResolvedValue({ userId: "u1", requirePayment: false })
-  mockEventTypeUpdate.mockResolvedValue({ id: "et-1" })
+  mockEventTypeUpdate.mockResolvedValue({ id: "et-1", collectiveMemberships: [] })
 })
 
 describe("requirePro guard", () => {

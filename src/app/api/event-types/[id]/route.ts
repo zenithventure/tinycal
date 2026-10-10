@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
+import { collectiveMembershipsInclude, collectiveMemberIds, withCollectiveMembers, replaceCollectiveMembers } from "@/lib/collective"
 import { requirePro, planGateResponse } from "@/lib/plan"
 
 // URL-safe slug. Lowercase letters, digits, hyphens. No leading/trailing
@@ -20,10 +21,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       id: params.id,
       OR: [
         { userId: user.id },
-        { isCollective: true, collectiveMembers: { has: user.id } },
+        { isCollective: true, collectiveMemberships: { some: { userId: user.id } } },
       ],
     },
     include: {
+      ...collectiveMembershipsInclude,
       questions: { orderBy: { order: "asc" } },
       user: { select: { id: true, name: true, email: true, slug: true } },
     },
@@ -34,15 +36,16 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // can render names instead of raw IDs. Skipped for non-collective event
   // types to avoid a wasted query.
   let collectiveHosts: { id: string; name: string | null; email: string | null }[] = []
-  if (eventType.isCollective && eventType.collectiveMembers.length > 0) {
+  const memberIds = collectiveMemberIds(eventType)
+  if (eventType.isCollective && memberIds.length > 0) {
     collectiveHosts = await prisma.user.findMany({
-      where: { id: { in: eventType.collectiveMembers } },
+      where: { id: { in: memberIds } },
       select: { id: true, name: true, email: true },
     })
   }
 
   const viewerRole = eventType.userId === user.id ? ("OWNER" as const) : ("CO_HOST" as const)
-  return NextResponse.json({ ...eventType, collectiveHosts, viewerRole })
+  return NextResponse.json({ ...withCollectiveMembers(eventType), collectiveHosts, viewerRole })
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -77,11 +80,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   // If collectiveMembers were sent, reject any IDs that don't resolve to a
   // real user — guards against typos or stale references in the payload.
-  if (Array.isArray(body.collectiveMembers) && body.collectiveMembers.length > 0) {
+  const requestedMembers: string[] | undefined = Array.isArray(body.collectiveMembers)
+    ? Array.from(new Set<string>(body.collectiveMembers))
+    : undefined
+  if (requestedMembers && requestedMembers.length > 0) {
     const found = await prisma.user.count({
-      where: { id: { in: body.collectiveMembers } },
+      where: { id: { in: requestedMembers } },
     })
-    if (found !== body.collectiveMembers.length) {
+    if (found !== requestedMembers.length) {
       return NextResponse.json(
         { error: "One or more collectiveMembers IDs don't resolve to a TinyCal user" },
         { status: 400 }
@@ -138,12 +144,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         requirePayment: body.requirePayment,
         price: body.price,
         isCollective: body.isCollective,
-        collectiveMembers: body.collectiveMembers,
+        ...(requestedMembers && {
+          collectiveMemberships: replaceCollectiveMembers(requestedMembers),
+        }),
         availabilityScheduleId: body.availabilityScheduleId,
       },
-      include: { questions: { orderBy: { order: "asc" } } },
+      include: { questions: { orderBy: { order: "asc" } }, ...collectiveMembershipsInclude },
     })
-    return NextResponse.json(eventType)
+    return NextResponse.json(withCollectiveMembers(eventType))
   } catch (e) {
     // Unique constraint on @@unique([userId, slug]) — surface a friendly error
     // instead of leaking the Prisma error shape.

@@ -71,7 +71,9 @@ Defined in `prisma/schema.prisma` (Postgres). Key entities:
 - `title`, `slug` (unique per user), `description`, `duration`, `location` (GOOGLE_MEET/ZOOM/IN_PERSON/PHONE/CUSTOM), `customLocation`, `color`, `active`
 - Rules: `bufferBefore/After`, `dailyLimit`, `weeklyLimit`, `minNotice`, `maxFutureDays`, optional `availabilityScheduleId`
 - Payment: `requirePayment`, `price`, `currency`
-- Collective: `isCollective`, `collectiveMembers` (user IDs)
+- Collective: `isCollective` plus co-hosts in the **EventCollectiveMember** join table (`eventTypeId`, `userId`, composite PK, FK to both with `ON DELETE CASCADE`). The API still exposes a flat `collectiveMembers: string[]` (see `src/lib/collective.ts`).
+  - **User deletion strips membership:** deleting a co-host removes their membership rows only; the event type, its owner and its bookings are untouched. Deleting the owner deletes the event type (and its memberships). There is no blocked-delete path and no dangling user id.
+  - Migration `20261009000000_event_collective_member` backfilled the old `String[]` column (dangling ids and duplicates dropped) and removed it. Verify with `scripts/verify-collective-migration.sh` against a scratch DB; DB-backed tests live in `src/__tests__/db/` (run with `TEST_DATABASE_URL`).
 
 **CustomQuestion** - intake fields on an event type (`TEXT/TEXTAREA/SELECT/RADIO/CHECKBOX/PHONE/EMAIL`)
 

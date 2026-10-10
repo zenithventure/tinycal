@@ -6,6 +6,7 @@ import { updateOutlookCalendarEvent, createOutlookCalendarEvent } from "@/lib/ca
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { hasBookingConflict } from "@/lib/bookings/conflict-check"
+import { collectiveMembershipsInclude, withCollectiveMembers } from "@/lib/collective"
 import { track } from "@/lib/track"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
@@ -15,7 +16,9 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
 
   const booking = await prisma.booking.findUnique({
     where: { uid: params.uid },
-    include: { eventType: { include: { user: true } } },
+    include: {
+      eventType: { include: { user: true, ...collectiveMembershipsInclude } },
+    },
   })
   if (!booking) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (booking.status === "CANCELLED" || booking.status === "RESCHEDULED") {
@@ -27,7 +30,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
 
   if (
     await hasBookingConflict({
-      eventType: booking.eventType,
+      eventType: withCollectiveMembers(booking.eventType),
       start,
       end,
       excludeBookingId: booking.id,
