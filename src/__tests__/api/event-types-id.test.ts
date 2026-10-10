@@ -37,7 +37,7 @@ const SOLO_ET = {
   id: "et-1",
   userId: "owner-1",
   isCollective: false,
-  collectiveMembers: [] as string[],
+  collectiveMemberships: [] as { userId: string }[],
   questions: [],
 }
 
@@ -45,7 +45,7 @@ const COLLECTIVE_ET = {
   id: "et-1",
   userId: "owner-1",
   isCollective: true,
-  collectiveMembers: ["alex-id", "morgan-id"],
+  collectiveMemberships: [{ userId: "alex-id" }, { userId: "morgan-id" }],
   questions: [],
 }
 
@@ -97,7 +97,7 @@ describe("GET /api/event-types/[id]", () => {
       id: "et-1",
       OR: [
         { userId: "alex-id" },
-        { isCollective: true, collectiveMembers: { has: "alex-id" } },
+        { isCollective: true, collectiveMemberships: { some: { userId: "alex-id" } } },
       ],
     })
   })
@@ -124,7 +124,7 @@ describe("PATCH /api/event-types/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetAuthenticatedUser.mockResolvedValue(OWNER)
-    mockEventTypeUpdate.mockResolvedValue({ id: "et-1" })
+    mockEventTypeUpdate.mockResolvedValue({ id: "et-1", collectiveMemberships: [] })
   })
 
   it("blocks PATCH on someone else's event type with 403", async () => {
@@ -177,6 +177,53 @@ describe("PATCH /api/event-types/[id]", () => {
     )
     expect(res.status).toBe(200)
     expect(mockEventTypeUpdate).toHaveBeenCalled()
+  })
+
+  it("replaces co-host memberships via the join table (deduped)", async () => {
+    mockEventTypeFindUnique.mockResolvedValueOnce({ userId: OWNER.id })
+    mockUserCount.mockResolvedValueOnce(2)
+    mockEventTypeUpdate.mockResolvedValueOnce({
+      id: "et-1",
+      collectiveMemberships: [{ userId: "alex-id" }, { userId: "morgan-id" }],
+    })
+
+    const res = await PATCH(
+      new Request("http://x", {
+        method: "PATCH",
+        body: JSON.stringify({ collectiveMembers: ["alex-id", "morgan-id", "alex-id"] }),
+      }),
+      { params: { id: "et-1" } }
+    )
+    expect(mockUserCount).toHaveBeenCalledWith({ where: { id: { in: ["alex-id", "morgan-id"] } } })
+    const data = mockEventTypeUpdate.mock.calls[0][0].data
+    expect(data.collectiveMemberships).toEqual({
+      deleteMany: {},
+      create: [{ userId: "alex-id" }, { userId: "morgan-id" }],
+    })
+    expect(data).not.toHaveProperty("collectiveMembers")
+    // API shape is unchanged: still a string[] of ids.
+    expect((await res.json()).collectiveMembers).toEqual(["alex-id", "morgan-id"])
+  })
+
+  it("an empty collectiveMembers array clears all memberships", async () => {
+    mockEventTypeFindUnique.mockResolvedValueOnce({ userId: OWNER.id })
+    await PATCH(
+      new Request("http://x", { method: "PATCH", body: JSON.stringify({ collectiveMembers: [] }) }),
+      { params: { id: "et-1" } }
+    )
+    expect(mockEventTypeUpdate.mock.calls[0][0].data.collectiveMemberships).toEqual({
+      deleteMany: {},
+      create: [],
+    })
+  })
+
+  it("leaves memberships untouched when collectiveMembers is not sent", async () => {
+    mockEventTypeFindUnique.mockResolvedValueOnce({ userId: OWNER.id })
+    await PATCH(
+      new Request("http://x", { method: "PATCH", body: JSON.stringify({ title: "x" }) }),
+      { params: { id: "et-1" } }
+    )
+    expect(mockEventTypeUpdate.mock.calls[0][0].data).not.toHaveProperty("collectiveMemberships")
   })
 
   it("skips the user-existence check when collectiveMembers is empty/missing", async () => {

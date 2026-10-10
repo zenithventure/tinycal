@@ -39,6 +39,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   eventTypes     EventType[]
+  collectiveMemberships EventCollectiveMember[] @relation("collectiveMemberships")
   bookings       Booking[]
   availability   Availability[]
   availabilitySchedules AvailabilitySchedule[]
@@ -120,8 +121,10 @@ model EventType {
   currency       String  @default("usd")
 
   // Collective scheduling
+  // Co-hosts live in the EventCollectiveMember join table (#98); the old
+  // `collectiveMembers String[]` column was dropped by the
+  // 20261009000000_event_collective_member migration.
   isCollective   Boolean @default(false)
-  collectiveMembers String[] // user IDs
   
   // Availability Schedule
   availabilityScheduleId String?
@@ -132,9 +135,25 @@ model EventType {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookings  Booking[]
   questions CustomQuestion[]
+  collectiveMemberships EventCollectiveMember[]
   availabilitySchedule AvailabilitySchedule? @relation(fields: [availabilityScheduleId], references: [id], onDelete: SetNull)
 
   @@unique([userId, slug])
+}
+
+// Co-hosts of a collective event type. Both sides cascade: deleting a user
+// strips their co-host memberships (the event types themselves stay with their
+// owner), and deleting an event type removes its memberships. No dangling ids.
+model EventCollectiveMember {
+  eventTypeId String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  eventType EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  user      User      @relation("collectiveMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventTypeId, userId])
+  @@index([userId])
 }
 
 enum LocationType {

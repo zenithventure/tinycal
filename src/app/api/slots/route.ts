@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAvailableSlots } from "@/lib/availability"
 import prisma from "@/lib/prisma"
+import { collectiveMembershipsInclude, withCollectiveMembers } from "@/lib/collective"
 import { addDays } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
 
@@ -16,8 +17,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "eventTypeId required" }, { status: 400 })
   }
 
-  const eventType = await prisma.eventType.findUnique({ where: { id: eventTypeId } })
-  if (!eventType) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const eventTypeRow = await prisma.eventType.findUnique({
+    where: { id: eventTypeId },
+    include: collectiveMembershipsInclude,
+  })
+  if (!eventTypeRow) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const eventType = withCollectiveMembers(eventTypeRow)
 
   let startDate: Date
   let endDate: Date

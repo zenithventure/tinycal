@@ -7,6 +7,7 @@ import { createZoomMeeting } from "@/lib/video"
 import { triggerWebhooks } from "@/lib/webhooks"
 import { buildBookingPayload } from "@/lib/webhooks/booking-payload"
 import { hasBookingConflict } from "./conflict-check"
+import { collectiveMembershipsInclude, collectiveMemberIds, withCollectiveMembers } from "@/lib/collective"
 import { track } from "@/lib/track"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
@@ -54,7 +55,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
 
   const eventType = await prisma.eventType.findUnique({
     where: { id: input.eventTypeId },
-    include: { user: true },
+    include: { user: true, ...collectiveMembershipsInclude },
   })
   if (!eventType) {
     void track("booking_failed", {
@@ -79,7 +80,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   const start = typeof input.startTime === "string" ? new Date(input.startTime) : input.startTime
   const end = new Date(start.getTime() + eventType.duration * 60000)
 
-  if (await hasBookingConflict({ eventType, start, end })) {
+  if (await hasBookingConflict({ eventType: withCollectiveMembers(eventType), start, end })) {
     void track("booking_failed", {
       userId: eventType.userId,
       eventType: eventType.id,
@@ -148,10 +149,15 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   return { ok: true, booking }
 }
 
+type BookableEventType = EventType & {
+  user: User
+  collectiveMemberships: { userId: string }[]
+}
+
 // ── helpers, kept private to avoid widening the module surface ──
 
 async function generateMeeting(
-  eventType: EventType & { user: User },
+  eventType: BookableEventType,
   input: CreateBookingInput,
   start: Date,
   end: Date
@@ -189,7 +195,7 @@ async function generateMeeting(
 }
 
 async function sendConfirmationEmails(
-  eventType: EventType & { user: User },
+  eventType: BookableEventType,
   booking: Booking,
   bookerTimezone: string,
   start: Date
@@ -256,13 +262,14 @@ async function sendConfirmationEmails(
 // dropping any that don't have one on record. Returns [] for non-collective
 // event types or when the member list is empty — safe to call unconditionally.
 async function getCollectiveCoHostEmails(
-  eventType: EventType & { user: User }
+  eventType: BookableEventType
 ): Promise<string[]> {
-  if (!eventType.isCollective || eventType.collectiveMembers.length === 0) {
+  const memberIds = collectiveMemberIds(eventType)
+  if (!eventType.isCollective || memberIds.length === 0) {
     return []
   }
   const coHosts = await prisma.user.findMany({
-    where: { id: { in: eventType.collectiveMembers } },
+    where: { id: { in: memberIds } },
     select: { email: true },
   })
   return coHosts.map((u) => u.email).filter((e): e is string => Boolean(e))
@@ -274,7 +281,7 @@ async function fanoutWebhooks(userId: string, bookingId: string) {
 }
 
 async function maybeCreateOutlookEvent(
-  eventType: EventType & { user: User },
+  eventType: BookableEventType,
   booking: Booking,
   start: Date,
   end: Date,

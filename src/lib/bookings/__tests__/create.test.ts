@@ -67,7 +67,7 @@ const SOLO_EVENT_TYPE = {
   duration: 30,
   location: "GOOGLE_MEET",
   isCollective: false,
-  collectiveMembers: [],
+  collectiveMemberships: [],
   requirePayment: false,
   user: HOST,
 } as any
@@ -220,7 +220,7 @@ describe("createBooking", () => {
     const COLLECTIVE_EVENT_TYPE = {
       ...SOLO_EVENT_TYPE,
       isCollective: true,
-      collectiveMembers: ["cohost-1", "cohost-2"],
+      collectiveMemberships: [{ userId: "cohost-1" }, { userId: "cohost-2" }],
     }
 
     beforeEach(() => {
@@ -246,7 +246,30 @@ describe("createBooking", () => {
       )
     })
 
-    it("resolves co-host emails by querying the collectiveMembers ids", async () => {
+    it("loads co-hosts from the EventCollectiveMember relation", async () => {
+      await createBooking(VALID_INPUT)
+      expect(mockEventTypeFindUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            collectiveMemberships: expect.objectContaining({ select: { userId: true } }),
+          }),
+        })
+      )
+    })
+
+    it("passes every co-host id to the conflict check as collectiveMembers", async () => {
+      await createBooking(VALID_INPUT)
+      expect(mockHasBookingConflict).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: expect.objectContaining({
+            isCollective: true,
+            collectiveMembers: ["cohost-1", "cohost-2"],
+          }),
+        })
+      )
+    })
+
+    it("resolves co-host emails by querying the membership user ids", async () => {
       await createBooking(VALID_INPUT)
       expect(mockUserFindMany).toHaveBeenCalledWith({
         where: { id: { in: ["cohost-1", "cohost-2"] } },
