@@ -2,6 +2,19 @@
   "_readme": "HOW TO ADD A RELEASE: append ONE object to the top of `entries` (newest first), one block per release. Fields: id (unique slug, e.g. '2026-10-06-hardening'), date (YYYY-MM-DD), title, description, type (new | fixed | changed | breaking; the release headline type), tags (optional string[]), changes (optional sub-entries: [{ type, text }]). Nothing else needs editing: /changelog and the dashboard 'What's new' dot read this file. Keys starting with '_' are ignored.",
   "entries": [
     {
+      "id": "2026-10-10-money-integer-cents",
+      "date": "2026-10-10",
+      "title": "Breaking: event type prices are now integer cents in the API",
+      "description": "Event type prices are now stored and returned as whole cents (19.99 is 1999) to eliminate rounding errors. The dashboard still shows and accepts normal dollar amounts.",
+      "type": "breaking",
+      "tags": ["api", "payments"],
+      "changes": [
+        { "type": "breaking", "text": "What changed: the `price` field on event types (and `paymentAmount` on bookings) is now an integer number of cents in API requests and responses. A price of 19.99 is returned as 1999, and a fractional or negative `price` is rejected with 400. Existing prices were converted automatically." },
+        { "type": "breaking", "text": "Who is affected: anyone calling the event type API (dashboard or v1) that reads or sets `price` or `paymentAmount` directly. Dashboard-only users are not affected." },
+        { "type": "breaking", "text": "What to do: send and expect `price` in cents (multiply dollars by 100). Dashboard users need to do nothing." }
+      ]
+    },
+    {
       "id": "2026-10-08-plan-gating",
       "date": "2026-10-08",
       "title": "Plans & upgrades",
