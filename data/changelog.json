@@ -2,6 +2,17 @@
   "_readme": "HOW TO ADD A RELEASE: append ONE object to the top of `entries` (newest first), one block per release. Fields: id (unique slug, e.g. '2026-10-06-hardening'), date (YYYY-MM-DD), title, description, type (new | fixed | changed | breaking; the release headline type), tags (optional string[]), changes (optional sub-entries: [{ type, text }]). Nothing else needs editing: /changelog and the dashboard 'What's new' dot read this file. Keys starting with '_' are ignored.",
   "entries": [
     {
+      "id": "2026-10-11-v1.0.6-login-fix",
+      "date": "2026-10-11",
+      "title": "Sign-in reliability",
+      "description": "Fixed: 'Continue with Google' now signs you in reliably.",
+      "type": "fixed",
+      "tags": ["sign-in", "auth"],
+      "changes": [
+        { "type": "fixed", "text": "Fixed: 'Continue with Google' now signs you in reliably." }
+      ]
+    },
+    {
       "id": "2026-10-08-plan-gating",
       "date": "2026-10-08",
       "title": "Plans & upgrades",
