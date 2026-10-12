@@ -70,7 +70,7 @@ Defined in `prisma/schema.prisma` (Postgres). Key entities:
 **EventType** - bookable meeting configuration
 - `title`, `slug` (unique per user), `description`, `duration`, `location` (GOOGLE_MEET/ZOOM/IN_PERSON/PHONE/CUSTOM), `customLocation`, `color`, `active`
 - Rules: `bufferBefore/After`, `dailyLimit`, `weeklyLimit`, `minNotice`, `maxFutureDays`, optional `availabilityScheduleId`
-- Payment: `requirePayment`, `price`, `currency`
+- Payment: `requirePayment`, `price` (integer cents, `Int?`), `currency`
 - Collective: `isCollective`, `collectiveMembers` (user IDs)
 
 **CustomQuestion** - intake fields on an event type (`TEXT/TEXTAREA/SELECT/RADIO/CHECKBOX/PHONE/EMAIL`)
@@ -78,7 +78,7 @@ Defined in `prisma/schema.prisma` (Postgres). Key entities:
 **Booking** - scheduled meeting
 - `uid` (public id), `startTime/endTime`, `status` (PENDING, PENDING_CONFIRMATION, CONFIRMED, CANCELLED, RESCHEDULED, COMPLETED, NO_SHOW), `source` (BOOKING_PAGE/MEETING_LINK)
 - Booker: `bookerName/Email/Timezone/Phone/Linkedin`; meeting: `location`, `meetingUrl`, `meetingId`
-- Payment: `paid`, `paymentAmount`, `stripePaymentIntentId`; `answers` (JSON), `cancelReason`, `rescheduleUid`, `reminderSentAt`, `smsReminderSentAt`
+- Payment: `paid`, `paymentAmount` (integer cents), `stripePaymentIntentId`; `answers` (JSON), `cancelReason`, `rescheduleUid`, `reminderSentAt`, `smsReminderSentAt`
 
 **AvailabilitySchedule / AvailabilityRule** - named weekly schedules with per-day rules and date overrides (assignable to event types). The legacy per-user **Availability** table is still present and used for the default Mon-Fri seed.
 

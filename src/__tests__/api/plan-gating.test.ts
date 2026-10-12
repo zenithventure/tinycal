@@ -139,7 +139,7 @@ describe("event-type cap — v1 POST /api/v1/event-types", () => {
 describe("paid event types — dashboard POST", () => {
   it("blocks FREE with requirePayment (402)", async () => {
     mockGetAuthenticatedUser.mockResolvedValue(free())
-    const res = await dashboardPost(post({ requirePayment: true, price: 10 }))
+    const res = await dashboardPost(post({ requirePayment: true, price: 1000 }))
     expect(res.status).toBe(402)
     expect((await res.json()).feature).toBe("paid_event_types")
     expect(mockEventTypeCreate).not.toHaveBeenCalled()
@@ -152,28 +152,50 @@ describe("paid event types — dashboard POST", () => {
 
   it("allows PRO with requirePayment", async () => {
     mockGetAuthenticatedUser.mockResolvedValue(pro())
-    expect((await dashboardPost(post({ requirePayment: true, price: 10 }))).status).toBe(200)
+    expect((await dashboardPost(post({ requirePayment: true, price: 1000 }))).status).toBe(200)
   })
 
   it("upgrade transition: 402 as FREE, 200 after flip to PRO", async () => {
     mockGetAuthenticatedUser.mockResolvedValueOnce(free())
-    expect((await dashboardPost(post({ requirePayment: true, price: 10 }))).status).toBe(402)
+    expect((await dashboardPost(post({ requirePayment: true, price: 1000 }))).status).toBe(402)
     mockGetAuthenticatedUser.mockResolvedValueOnce(pro())
-    expect((await dashboardPost(post({ requirePayment: true, price: 10 }))).status).toBe(200)
+    expect((await dashboardPost(post({ requirePayment: true, price: 1000 }))).status).toBe(200)
+  })
+})
+
+describe("price is integer cents", () => {
+  it("POST rejects a fractional (dollar-float) price with 400", async () => {
+    mockGetAuthenticatedUser.mockResolvedValue(pro())
+    const res = await dashboardPost(post({ requirePayment: true, price: 19.99 }))
+    expect(res.status).toBe(400)
+    expect(mockEventTypeCreate).not.toHaveBeenCalled()
+  })
+
+  it("POST stores integer cents unchanged", async () => {
+    mockGetAuthenticatedUser.mockResolvedValue(pro())
+    expect((await dashboardPost(post({ requirePayment: true, price: 1999 }))).status).toBe(200)
+    expect(mockEventTypeCreate.mock.calls[0][0].data.price).toBe(1999)
+  })
+
+  it("PATCH rejects negative and fractional prices with 400", async () => {
+    mockGetAuthenticatedUser.mockResolvedValue(pro())
+    expect((await PATCH(patch({ price: -5 }), ctx)).status).toBe(400)
+    expect((await PATCH(patch({ price: 19.99 }), ctx)).status).toBe(400)
+    expect(mockEventTypeUpdate).not.toHaveBeenCalled()
   })
 })
 
 describe("paid event types — dashboard PATCH", () => {
   it("blocks FREE turning requirePayment on (402)", async () => {
     mockGetAuthenticatedUser.mockResolvedValue(free())
-    const res = await PATCH(patch({ requirePayment: true, price: 10 }), ctx)
+    const res = await PATCH(patch({ requirePayment: true, price: 1000 }), ctx)
     expect(res.status).toBe(402)
     expect(mockEventTypeUpdate).not.toHaveBeenCalled()
   })
 
   it("allows PRO turning requirePayment on", async () => {
     mockGetAuthenticatedUser.mockResolvedValue(pro())
-    expect((await PATCH(patch({ requirePayment: true, price: 10 }), ctx)).status).toBe(200)
+    expect((await PATCH(patch({ requirePayment: true, price: 1000 }), ctx)).status).toBe(200)
   })
 
   it("allows FREE edits that don't enable payment", async () => {

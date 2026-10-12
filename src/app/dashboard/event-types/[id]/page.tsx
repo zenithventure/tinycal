@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, Save, X, AlertCircle, Users } from "lucide-react"
 import Link from "next/link"
 import { activeScheduleLabel } from "@/lib/availability-rules"
+import { centsToDecimalString, parseMoneyToCents } from "@/lib/money"
 
 interface CoHost {
   id: string
@@ -33,6 +34,8 @@ export default function EditEventTypePage() {
   const params = useParams()
   const router = useRouter()
   const [et, setEt] = useState<any>(null)
+  // The API speaks integer cents; the input edits dollars as text.
+  const [priceText, setPriceText] = useState<string>("")
   const [originalSlug, setOriginalSlug] = useState<string>("")
   const [userSlug, setUserSlug] = useState<string>("")
   const [userPlan, setUserPlan] = useState<string>("")
@@ -47,6 +50,7 @@ export default function EditEventTypePage() {
   useEffect(() => {
     fetch(`/api/event-types/${params.id}`).then(r => r.json()).then(data => {
       setEt(data)
+      setPriceText(centsToDecimalString(data?.price))
       setOriginalSlug(data.slug ?? "")
     })
     fetch("/api/user").then(r => r.json()).then(u => { setUserSlug(u?.slug ?? ""); setUserPlan(u?.plan ?? "") })
@@ -307,7 +311,10 @@ export default function EditEventTypePage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Price</label>
-              <input type="number" step="0.01" value={et.price || ""} onChange={e => setEt({ ...et, price: Number(e.target.value) })}
+              <input type="number" step="0.01" min="0" value={priceText} onChange={e => {
+                  setPriceText(e.target.value)
+                  setEt({ ...et, price: e.target.value === "" ? null : parseMoneyToCents(e.target.value) })
+                }}
                 className="w-full border rounded-lg px-3 py-2" />
             </div>
             <div>

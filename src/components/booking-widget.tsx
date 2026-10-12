@@ -5,6 +5,7 @@ import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameD
 import { toZonedTime } from "date-fns-tz"
 import { ChevronLeft, ChevronRight, Clock, Globe, Check } from "lucide-react"
 import Link from "next/link"
+import { centsToDecimalString } from "@/lib/money"
 
 function TimeSlotSkeleton() {
   return (
@@ -230,7 +231,7 @@ export default function BookingWidget({ eventType, host, visitId }: BookingWidge
             <p className="flex items-center gap-2"><Globe className="w-4 h-4" /> {eventType.location.replace("_", " ")}</p>
             {eventType.requirePayment && eventType.price && (
               <p className="font-medium text-gray-700">
-                💰 {eventType.currency.toUpperCase()} {eventType.price}
+                💰 {eventType.currency.toUpperCase()} {centsToDecimalString(eventType.price)}
               </p>
             )}
           </div>
@@ -318,7 +319,7 @@ export default function BookingWidget({ eventType, host, visitId }: BookingWidge
                 <button onClick={handleBook} disabled={booking}
                   className="w-full py-3 md:py-2.5 rounded-lg text-white font-medium disabled:opacity-50 transition text-base"
                   style={{ backgroundColor: host.brandColor }}>
-                  {booking ? "Booking..." : eventType.requirePayment ? `Book & Pay ${eventType.currency.toUpperCase()} ${eventType.price}` : "Confirm Booking"}
+                  {booking ? "Booking..." : eventType.requirePayment ? `Book & Pay ${eventType.currency.toUpperCase()} ${centsToDecimalString(eventType.price)}` : "Confirm Booking"}
                 </button>
               </div>
             </div>

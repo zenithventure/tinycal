@@ -116,7 +116,7 @@ model EventType {
 
   // Payment
   requirePayment Boolean @default(false)
-  price          Float?
+  price          Int?       // integer cents (#97)
   currency       String  @default("usd")
 
   // Collective scheduling
@@ -195,7 +195,7 @@ model Booking {
 
   // Payment
   paid          Boolean @default(false)
-  paymentAmount Float?
+  paymentAmount Int?   // integer cents (#97)
   stripePaymentIntentId String?
 
   // Answers to custom questions

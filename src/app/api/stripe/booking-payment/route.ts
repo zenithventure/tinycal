@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       price_data: {
         currency: booking.eventType.currency,
         product_data: { name: booking.eventType.title },
-        unit_amount: Math.round(booking.eventType.price * 100),
+        unit_amount: booking.eventType.price // already integer cents,
       },
       quantity: 1,
     }],

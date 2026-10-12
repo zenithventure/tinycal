@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { generateSlug } from "@/lib/utils"
 import { track } from "@/lib/track"
+import { isValidCents } from "@/lib/money"
 import { requirePro, enforceEventTypeLimit, planGateResponse } from "@/lib/plan"
 
 export async function GET() {
@@ -43,6 +44,13 @@ export async function POST(req: Request) {
   const body = await req.json()
 
   const userId = user.id
+  if (body.price !== undefined && body.price !== null && !isValidCents(body.price)) {
+    return NextResponse.json(
+      { error: "price must be a non-negative integer number of cents (e.g. 1999 for 19.99)" },
+      { status: 400 }
+    )
+  }
+
   try {
     await enforceEventTypeLimit(user)
     if (body.requirePayment) requirePro(user, "paid_event_types")
